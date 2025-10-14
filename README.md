@@ -6,52 +6,104 @@
 
 ## About
 
-GitHub Action to extract metadata from Git reference and GitHub events. This action
-is particularly useful if used with [Docker Build Push](https://github.com/docker/build-push-action)
+> **Note**: This fork has been modified to use git commands directly instead of the GitHub API.
+> It still functions as a GitHub Action but extracts all metadata from git repository information
+> using the `simple-git` library, removing the dependency on `@actions/github` and `@docker/actions-toolkit`.
+
+GitHub Action to extract metadata from Git references for Docker image tagging and labeling.
+This action is particularly useful if used with [Docker Build Push](https://github.com/docker/build-push-action)
 action to tag and label Docker images.
+
+## Local Testing
+
+You can test the action locally using [act](https://github.com/nektos/act) before pushing to GitHub:
+
+### Install act
+
+```bash
+# macOS
+brew install act
+
+# Linux
+curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+
+# Windows
+choco install act-cli
+```
+
+### Run Tests
+
+```bash
+# Run common tests (default)
+./act-build.sh
+
+# Run specific job from a workflow
+./act-build.sh ci.yml context      # Run 'context' job from ci.yml
+./act-build.sh ci.yml flavor       # Run 'flavor' job from ci.yml
+
+# Run all jobs in a workflow
+./act-build.sh ci.yml              # Run all jobs in ci.yml
+./act-build.sh test.yml            # Run all jobs in test.yml
+
+# Backward compatibility - assumes ci.yml
+./act-build.sh context             # Runs ci.yml context job
+
+# List all workflows and jobs
+./act-build.sh list
+
+# See usage and examples
+./act-build.sh help
+```
+
+The script will build the action and run it through the existing GitHub Actions workflows using act,
+providing a realistic test environment that matches GitHub's infrastructure.
 
 ![Screenshot](.github/metadata-action.png)
 
 ___
 
-* [Usage](#usage)
-  * [Basic](#basic)
-  * [Semver](#semver)
-  * [Bake definition](#bake-definition)
-* [Customizing](#customizing)
-  * [inputs](#inputs)
-  * [outputs](#outputs)
-  * [environment variables](#environment-variables)
-* [`context` input](#context-input)
-* [`images` input](#images-input)
-* [`flavor` input](#flavor-input)
-* [`tags` input](#tags-input)
-  * [`type=schedule`](#typeschedule)
-  * [`type=semver`](#typesemver)
-  * [`type=pep440`](#typepep440)
-  * [`type=match`](#typematch)
-  * [`type=edge`](#typeedge)
-  * [`type=ref`](#typeref)
-  * [`type=raw`](#typeraw)
-  * [`type=sha`](#typesha)
-* [Notes](#notes)
-  * [Image name and tag sanitization](#image-name-and-tag-sanitization)
-  * [Latest tag](#latest-tag)
-  * [`priority` attribute](#priority-attribute)
-  * [Global expressions](#global-expressions)
-    * [`{{branch}}`](#branch)
-    * [`{{tag}}`](#tag)
-    * [`{{sha}}`](#sha)
-    * [`{{base_ref}}`](#base_ref)
-    * [`{{is_default_branch}}`](#is_default_branch)
-    * [`{{is_not_default_branch}}`](#is_not_default_branch)
-    * [`{{date '<format>' tz='<timezone>'}}`](#date-format-tztimezone)
-    * [`{{commit_date '<format>' tz='<timezone>'}}`](#commit_date-format-tztimezone)
-  * [Major version zero](#major-version-zero)
-  * [JSON output object](#json-output-object)
-  * [Overwrite labels and annotations](#overwrite-labels-and-annotations)
-  * [Annotations](#annotations)
-* [Contributing](#contributing)
+- [About](#about)
+- [Local Testing](#local-testing)
+  - [Install act](#install-act)
+  - [Run Tests](#run-tests)
+- [Usage](#usage)
+  - [Basic](#basic)
+  - [Semver](#semver)
+  - [Bake definition](#bake-definition)
+- [Customizing](#customizing)
+  - [inputs](#inputs)
+  - [outputs](#outputs)
+  - [environment variables](#environment-variables)
+- [`context` input](#context-input)
+- [`images` input](#images-input)
+- [`flavor` input](#flavor-input)
+- [`tags` input](#tags-input)
+  - [`type=schedule`](#typeschedule)
+  - [`type=semver`](#typesemver)
+  - [`type=pep440`](#typepep440)
+  - [`type=match`](#typematch)
+  - [`type=edge`](#typeedge)
+  - [`type=ref`](#typeref)
+  - [`type=raw`](#typeraw)
+  - [`type=sha`](#typesha)
+- [Notes](#notes)
+  - [Image name and tag sanitization](#image-name-and-tag-sanitization)
+  - [Latest tag](#latest-tag)
+  - [`priority` attribute](#priority-attribute)
+  - [Global expressions](#global-expressions)
+    - [`{{branch}}`](#branch)
+    - [`{{tag}}`](#tag)
+    - [`{{sha}}`](#sha)
+    - [`{{base_ref}}`](#base_ref)
+    - [`{{is_default_branch}}`](#is_default_branch)
+    - [`{{is_not_default_branch}}`](#is_not_default_branch)
+    - [`{{date '<format>' tz='<timezone>'}}`](#date-format-tztimezone)
+    - [`{{commit_date '<format>' tz='<timezone>'}}`](#commit_date-format-tztimezone)
+  - [Major version zero](#major-version-zero)
+  - [JSON output object](#json-output-object)
+  - [Overwrite labels and annotations](#overwrite-labels-and-annotations)
+  - [Annotations](#annotations)
+- [Contributing](#contributing)
 
 ## Usage
 

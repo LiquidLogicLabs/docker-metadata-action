@@ -51,3 +51,7 @@ jspm_packages/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# act (GitHub Actions local testing)
+.act/
+.secrets
