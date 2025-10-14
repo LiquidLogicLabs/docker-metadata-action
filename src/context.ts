@@ -37,7 +37,12 @@ function getInputList(name: string, options?: {ignoreComma?: boolean; comment?: 
     if (options?.ignoreComma) {
       items.push(trimmed);
     } else {
-      items.push(...trimmed.split(',').map(item => item.trim()).filter(item => item.length > 0));
+      items.push(
+        ...trimmed
+          .split(',')
+          .map(item => item.trim())
+          .filter(item => item.length > 0)
+      );
     }
   }
   return items;

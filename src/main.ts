@@ -5,12 +5,25 @@ import {getContext, getInputs, Inputs, Context} from './context';
 import {getGitContext, parseRepoFromRemoteUrl, Repo} from './git';
 import {Meta, Version} from './meta';
 
+function setOutputAndEnv(name: string, value: string) {
+  core.setOutput(name, value);
+  core.exportVariable(`DOCKER_METADATA_OUTPUT_${name.replace(/\W/g, '_').toUpperCase()}`, value);
+}
+
+function outputEnvEnabled(): boolean {
+  if (process.env.DOCKER_METADATA_SET_OUTPUT_ENV) {
+    return /true/i.test(process.env.DOCKER_METADATA_SET_OUTPUT_ENV);
+  }
+  return true;
+}
+
 async function run() {
   try {
     const inputs: Inputs = getInputs();
     const context: Context = await getContext();
     const gitContext = await getGitContext();
     const repo: Repo = parseRepoFromRemoteUrl(gitContext.remoteUrl || '', gitContext.defaultBranch);
+    const setOutput = outputEnvEnabled() ? setOutputAndEnv : core.setOutput;
 
     await core.group(`Context info`, async () => {
       core.info(`sha: ${context.sha}`);
@@ -28,7 +41,7 @@ async function run() {
         core.info(version.main || '');
       });
     }
-    core.setOutput('version', version.main || '');
+    setOutput('version', version.main || '');
 
     // Docker tags
     const tags: Array<string> = meta.getTags();
@@ -41,7 +54,7 @@ async function run() {
         }
       });
     }
-    core.setOutput('tags', tags.join(inputs.sepTags));
+    setOutput('tags', tags.join(inputs.sepTags));
 
     // Docker labels
     const labels: Array<string> = meta.getLabels();
@@ -49,8 +62,8 @@ async function run() {
       for (const label of labels) {
         core.info(label);
       }
+      setOutput('labels', labels.join(inputs.sepLabels));
     });
-    core.setOutput('labels', labels.join(inputs.sepLabels));
 
     // Annotations
     const annotationsRaw: Array<string> = meta.getAnnotations();
@@ -66,15 +79,15 @@ async function run() {
           })
         );
       }
-      core.setOutput(`annotations`, annotations.join(inputs.sepAnnotations));
+      setOutput(`annotations`, annotations.join(inputs.sepAnnotations));
     });
 
     // JSON
     const jsonOutput = meta.getJSON(annotationsLevels.split(','));
     await core.group(`JSON output`, async () => {
       core.info(JSON.stringify(jsonOutput, null, 2));
+      setOutput('json', JSON.stringify(jsonOutput));
     });
-    core.setOutput('json', JSON.stringify(jsonOutput));
 
     // Bake files
     for (const kind of ['tags', 'labels', 'annotations:' + annotationsLevels]) {
@@ -82,12 +95,12 @@ async function run() {
       const bakeFile: string = meta.getBakeFile(kind);
       await core.group(`Bake file definition (${outputName})`, async () => {
         core.info(fs.readFileSync(bakeFile, 'utf8'));
+        setOutput(`bake-file-${outputName}`, bakeFile);
       });
-      core.setOutput(`bake-file-${outputName}`, bakeFile);
     }
 
     // Bake file with tags and labels
-    core.setOutput(`bake-file`, `${meta.getBakeFileTagsLabels()}`);
+    setOutput(`bake-file`, `${meta.getBakeFileTagsLabels()}`);
   } catch (error) {
     core.setFailed(error.message);
   }
