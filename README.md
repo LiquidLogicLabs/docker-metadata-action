@@ -74,7 +74,6 @@ ___
   - [inputs](#inputs)
   - [outputs](#outputs)
   - [environment variables](#environment-variables)
-- [`context` input](#context-input)
 - [`images` input](#images-input)
 - [`flavor` input](#flavor-input)
 - [`tags` input](#tags-input)
@@ -347,7 +346,6 @@ The following inputs can be used as `step.with` keys:
 
 | Name              | Type   | Description                                                                  |
 |-------------------|--------|------------------------------------------------------------------------------|
-| `context`         | String | Where to get context data. Allowed options are: `workflow` (default), `git`. |
 | `images`          | List   | List of Docker images to use as base name for tags                           |
 | `tags`            | List   | List of [tags](#tags-input) as key-value pair attributes                     |
 | `flavor`          | List   | [Flavor](#flavor-input) to apply                                             |
@@ -401,20 +399,6 @@ So it can be used with our [Docker Build Push action](https://github.com/docker/
 | `DOCKER_METADATA_SHORT_SHA_LENGTH`   | Number | Specifies the length of the [short commit SHA](#typesha) to ensure uniqueness. Default is `7`, but can be increased for larger repositories. |
 | `DOCKER_METADATA_ANNOTATIONS_LEVELS` | String | Comma separated list of annotations levels to set for annotations output separated (default `manifest`)                                      |
 | `DOCKER_METADATA_SET_OUTPUT_ENV`     | Bool   | If `true`, sets each output as an environment variable (default `true`)                                                                      |
-
-## `context` input
-
-`context` defines where to get context metadata:
-
-```yaml
-# default
-context: workflow
-# or
-context: git
-```
-
-* `workflow`: Get context metadata from the workflow (GitHub context). See https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
-* `git`: Get context metadata from the workflow and overrides some of them with current Git context, such as `ref` and `sha`.
 
 ## `images` input
 
