@@ -3,18 +3,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
-import {Context} from '@actions/github/lib/context';
-import {GitHub} from '@docker/actions-toolkit/lib/github';
-import {Toolkit} from '@docker/actions-toolkit/lib/toolkit';
-import {GitHubRepo} from '@docker/actions-toolkit/lib/types/github';
-
-import {ContextSource, getContext, getInputs, Inputs} from '../src/context';
+import {getContext, getInputs, Inputs} from '../src/context';
 import {Meta, Version} from '../src/meta';
+import {getGitContext} from '../src/git';
 
 import repoFixture from './fixtures/repo.json';
 
-jest.spyOn(GitHub.prototype, 'repoData').mockImplementation((): Promise<GitHubRepo> => {
-  return <Promise<GitHubRepo>>(repoFixture as unknown);
+jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
+  return {
+    sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
+    ref: 'refs/heads/dev',
+    commitDate: new Date('2024-11-13T13:42:28.000Z'),
+    remoteUrl: 'https://github.com/docker/repo.git',
+    defaultBranch: 'master'
+  };
 });
 
 jest.spyOn(global.Date.prototype, 'toISOString').mockImplementation(() => {
@@ -31,17 +33,6 @@ beforeEach(() => {
     if (key !== 'GITHUB_TOKEN' && key.startsWith('GITHUB_')) {
       delete process.env[key];
     }
-  });
-
-  jest.spyOn(GitHub, 'context', 'get').mockImplementation((): Context => {
-    //@ts-expect-error partial info
-    return {
-      ...new Context(),
-      repo: {
-        owner: 'docker',
-        repo: 'repo'
-      }
-    };
   });
 });
 
@@ -60,9 +51,14 @@ describe('isRawStatement', () => {
 
 const tagsLabelsTest = async (name: string, envFile: string, inputs: Inputs, exVersion: Version, exTags: Array<string>, exLabels: Array<string>, exAnnotations: Array<string> | undefined) => {
   process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
-  const toolkit = new Toolkit();
-  const repo = await toolkit.github.repoData();
-  const meta = new Meta({...getInputs(), ...inputs}, await getContext(ContextSource.workflow, toolkit), repo);
+  const repo = {
+    name: 'repo',
+    description: 'Docker repository',
+    url: 'https://github.com/docker/repo',
+    license: 'Apache-2.0',
+    default_branch: 'master'
+  };
+  const meta = new Meta({...getInputs(), ...inputs}, await getContext(), repo);
 
   const version = meta.version;
   expect(version).toEqual(exVersion);
@@ -3145,9 +3141,14 @@ describe('pr-head-sha', () => {
     process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
     process.env.DOCKER_METADATA_PR_HEAD_SHA = 'true';
 
-    const toolkit = new Toolkit();
-    const repo = await toolkit.github.repoData();
-    const meta = new Meta({...getInputs(), ...inputs}, await getContext(ContextSource.workflow, toolkit), repo);
+    const repo = {
+    name: 'repo',
+    description: 'Docker repository',
+    url: 'https://github.com/docker/repo',
+    license: 'Apache-2.0',
+    default_branch: 'master'
+  };
+    const meta = new Meta({...getInputs(), ...inputs}, await getContext(), repo);
 
     const version = meta.version;
     expect(version).toEqual(exVersion);
@@ -4223,9 +4224,14 @@ describe('json', () => {
   ])('given %p with %p event', async (name: string, envFile: string, inputs: Inputs, exJSON: unknown) => {
     process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
 
-    const toolkit = new Toolkit();
-    const repo = await toolkit.github.repoData();
-    const meta = new Meta({...getInputs(), ...inputs}, await getContext(ContextSource.workflow,toolkit), repo);
+    const repo = {
+    name: 'repo',
+    description: 'Docker repository',
+    url: 'https://github.com/docker/repo',
+    license: 'Apache-2.0',
+    default_branch: 'master'
+  };
+    const meta = new Meta({...getInputs(), ...inputs}, await getContext(), repo);
 
     const jsonOutput = meta.getJSON(['manifest']);
     expect(jsonOutput).toEqual(exJSON);
@@ -4739,9 +4745,14 @@ describe('bakeFile', () => {
   ])('given %p with %p event', async (name: string, envFile: string, inputs: Inputs, exBakeTags: unknown, exBakeLabels: unknown, exBakeAnnotations: unknown) => {
     process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
 
-    const toolkit = new Toolkit();
-    const repo = await toolkit.github.repoData();
-    const meta = new Meta({...getInputs(), ...inputs}, await getContext(ContextSource.workflow,toolkit), repo);
+    const repo = {
+    name: 'repo',
+    description: 'Docker repository',
+    url: 'https://github.com/docker/repo',
+    license: 'Apache-2.0',
+    default_branch: 'master'
+  };
+    const meta = new Meta({...getInputs(), ...inputs}, await getContext(), repo);
 
     const bakeFileTags = meta.getBakeFile('tags');
     expect(JSON.parse(fs.readFileSync(bakeFileTags, 'utf8'))).toEqual(exBakeTags);
@@ -4803,9 +4814,14 @@ describe('bakeFileTagsLabels', () => {
   ])('given %p with %p event', async (name: string, envFile: string, inputs: Inputs, exBakeDefinition: unknown) => {
     process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
 
-    const toolkit = new Toolkit();
-    const repo = await toolkit.github.repoData();
-    const meta = new Meta({...getInputs(), ...inputs}, await getContext(ContextSource.workflow,toolkit), repo);
+    const repo = {
+    name: 'repo',
+    description: 'Docker repository',
+    url: 'https://github.com/docker/repo',
+    license: 'Apache-2.0',
+    default_branch: 'master'
+  };
+    const meta = new Meta({...getInputs(), ...inputs}, await getContext(), repo);
 
     const bakeFile = meta.getBakeFileTagsLabels();
     expect(JSON.parse(fs.readFileSync(bakeFile, 'utf8'))).toEqual(exBakeDefinition);
@@ -4850,11 +4866,16 @@ describe('sepTags', () => {
 
     process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
 
-    const toolkit = new Toolkit();
 
-    const repo = await toolkit.github.repoData();
+    const repo = {
+    name: 'repo',
+    description: 'Docker repository',
+    url: 'https://github.com/docker/repo',
+    license: 'Apache-2.0',
+    default_branch: 'master'
+  };
 
-    const meta = new Meta({...getInputs(), ...inputs}, await getContext(ContextSource.workflow, toolkit), repo);
+    const meta = new Meta({...getInputs(), ...inputs}, await getContext(), repo);
 
     expect(meta.getTags().join(inputs.sepTags)).toEqual(expTags);
   });

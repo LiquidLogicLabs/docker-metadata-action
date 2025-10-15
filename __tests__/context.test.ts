@@ -2,20 +2,12 @@ import {afterEach, beforeEach, describe, expect, test, it, jest} from '@jest/glo
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
-import {Context} from '@actions/github/lib/context';
-import {Git} from '@docker/actions-toolkit/lib/git';
-import {GitHub} from '@docker/actions-toolkit/lib/github';
-import {Toolkit} from '@docker/actions-toolkit/lib/toolkit';
 
-import {ContextSource, getContext, getInputs, Inputs} from '../src/context';
-
-const toolkit = new Toolkit({githubToken: 'fake-github-token'});
+import {getContext, getInputs, Inputs} from '../src/context';
+import {getGitContext} from '../src/git';
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.spyOn(GitHub, 'context', 'get').mockImplementation((): Context => {
-    return new Context();
-  });
 });
 
 describe('getInputs', () => {
@@ -36,10 +28,8 @@ describe('getInputs', () => {
         ['images', 'moby/buildkit\nghcr.io/moby/mbuildkit'],
       ]),
       {
-        context: ContextSource.workflow,
         bakeTarget: 'docker-metadata-action',
         flavor: [],
-        githubToken: '',
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
         labels: [],
         annotations: [],
@@ -59,10 +49,8 @@ describe('getInputs', () => {
         ['sep-annotations', ',']
       ]),
       {
-        context: ContextSource.workflow,
         bakeTarget: 'metadata',
         flavor: [],
-        githubToken: '',
         images: ['moby/buildkit'],
         labels: [],
         annotations: [],
@@ -78,10 +66,8 @@ describe('getInputs', () => {
         ['images', 'moby/buildkit\n#comment\nghcr.io/moby/mbuildkit'],
       ]),
       {
-        context: ContextSource.workflow,
         bakeTarget: 'docker-metadata-action',
         flavor: [],
-        githubToken: '',
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
         labels: [],
         annotations: [],
@@ -115,27 +101,21 @@ describe('getContext', () => {
     process.env = originalEnv;
   });
 
-  it('workflow', async () => {
-    const context = await getContext(ContextSource.workflow, toolkit);
+  it('should return git context', async () => {
+    jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
+      return {
+        sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
+        ref: 'refs/heads/dev',
+        commitDate: new Date('2024-11-13T13:42:28.000Z'),
+        remoteUrl: 'https://github.com/test/repo.git',
+        defaultBranch: 'master'
+      };
+    });
+
+    const context = await getContext();
     expect(context.ref).toEqual('refs/heads/dev');
     expect(context.sha).toEqual('5f3331d7f7044c18ca9f12c77d961c4d7cf3276a');
     expect(context.commitDate).toEqual(new Date('2024-11-13T13:42:28.000Z'));
-  });
-
-  it('git', async () => {
-    jest.spyOn(Git, 'context').mockImplementation((): Promise<Context> => {
-      return Promise.resolve({
-        ref: 'refs/heads/git-test',
-        sha: 'git-test-sha'
-      } as Context);
-    });
-    jest.spyOn(Git, 'commitDate').mockImplementation(async (): Promise<Date> => {
-      return new Date('2023-01-01T13:42:28.000Z');
-    });
-    const context = await getContext(ContextSource.git, toolkit);
-    expect(context.ref).toEqual('refs/heads/git-test');
-    expect(context.sha).toEqual('git-test-sha');
-    expect(context.commitDate).toEqual(new Date('2023-01-01T13:42:28.000Z'));
   });
 });
 
