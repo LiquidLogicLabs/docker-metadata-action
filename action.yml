@@ -1,7 +1,7 @@
 # https://help.github.com/en/articles/metadata-syntax-for-github-actions
-name: 'Docker Metadata action'
-description: "GitHub Action to extract metadata (tags, labels) for Docker using git commands"
-author: 'docker'
+name: 'Docker Metadata action v2'
+description: "GitHub Action to extract metadata (tags, labels) for Docker using git commands (no dependency on gitHub API calls)"
+author: 'LiquidLogicLabs'
 branding:
   icon: 'anchor'
   color: 'blue'
