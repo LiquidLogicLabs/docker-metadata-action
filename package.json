@@ -1,6 +1,6 @@
 {
   "name": "docker-metadata-action",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GitHub Action to extract metadata (tags, labels) for Docker using git commands",
   "main": "src/main.ts",
   "scripts": {
