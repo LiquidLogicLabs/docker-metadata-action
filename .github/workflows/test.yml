@@ -11,8 +11,29 @@ on:
       - 'releases/v*'
   pull_request:
 
+# Skip tests if only documentation files changed
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs: ${{ steps.changes.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            docs:
+              - 'README.md'
+              - 'ACT_TESTING_GUIDE.md'
+              - 'MIGRATION_SUMMARY.md'
+              - 'TESTS_TODO.md'
+              - 'docs/**'
+              - '*.md'
+
   test:
+    needs: changes
+    if: ${{ !needs.changes.outputs.docs }}
     runs-on: ubuntu-latest
     steps:
       -
