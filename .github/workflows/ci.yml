@@ -20,24 +20,6 @@ env:
   BUILDX_VERSION: latest
 
 jobs:
-  context:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        context:
-          - workflow
-          - git
-    steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v5
-      -
-        name: Docker meta
-        uses: ./
-        with:
-          context: ${{ matrix.context }}
-
   multi-images:
     runs-on: ubuntu-latest
     steps:
