@@ -109,7 +109,11 @@ export class Meta {
   }
 
   private procSchedule(version: Version, tag: tcl.Tag): Version {
-    // In git-only mode, schedule tags are always processed
+    // Only process schedule tags when the event is actually a schedule event
+    if (this.context.eventName !== 'schedule') {
+      return version;
+    }
+    
     const currentDate = this.date;
     const commitDate = this.context.commitDate;
     const vraw = this.setValue(

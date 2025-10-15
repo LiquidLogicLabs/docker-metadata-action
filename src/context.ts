@@ -5,6 +5,7 @@ export interface Context {
   sha: string;
   ref: string;
   commitDate: Date;
+  eventName: string;
 }
 
 export interface Inputs {
@@ -49,9 +50,17 @@ function getInputList(name: string, options?: {ignoreComma?: boolean; comment?: 
 }
 
 export function getInputs(): Inputs {
+  const tagsInput = getInputList('tags', {ignoreComma: true, comment: '#'});
+  const defaultTags = [
+    'type=schedule',
+    'type=ref,event=branch',
+    'type=ref,event=tag',
+    'type=ref,event=pr'
+  ];
+  
   return {
     images: getInputList('images', {ignoreComma: true, comment: '#'}),
-    tags: getInputList('tags', {ignoreComma: true, comment: '#'}),
+    tags: tagsInput.length > 0 ? tagsInput : defaultTags,
     flavor: getInputList('flavor', {ignoreComma: true, comment: '#'}),
     labels: getInputList('labels', {ignoreComma: true, comment: '#'}),
     annotations: getInputList('annotations', {ignoreComma: true, comment: '#'}),
@@ -67,6 +76,7 @@ export async function getContext(): Promise<Context> {
   return {
     sha: gitContext.sha,
     ref: gitContext.ref,
-    commitDate: gitContext.commitDate
+    commitDate: gitContext.commitDate,
+    eventName: process.env.GITHUB_EVENT_NAME || 'push'
   };
 }

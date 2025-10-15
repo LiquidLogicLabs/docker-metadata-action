@@ -1,7 +1,5 @@
 import simpleGit, {SimpleGit} from 'simple-git';
 
-// Git context extraction using simple-git library
-
 export interface GitContext {
   sha: string;
   ref: string;
@@ -25,21 +23,27 @@ export async function getGitContext(): Promise<GitContext> {
     // Get current commit SHA
     const sha = await git.revparse(['HEAD']);
 
-    // Get current ref
+    // Get ref from GitHub Actions environment variables first, then fallback to git
     let ref = '';
-    try {
-      // Try to get symbolic ref (branch)
-      ref = await git.revparse(['--symbolic-full-name', 'HEAD']);
-    } catch {
-      // Try to get exact tag
+    if (process.env.GITHUB_REF) {
+      // Use GitHub Actions ref (most accurate for the triggering event)
+      ref = process.env.GITHUB_REF;
+    } else {
+      // Fallback to git commands for local testing
       try {
-        const tag = await git.raw(['describe', '--tags', '--exact-match']);
-        if (tag) {
-          ref = `refs/tags/${tag.trim()}`;
-        }
+        // Try to get symbolic ref (branch)
+        ref = await git.revparse(['--symbolic-full-name', 'HEAD']);
       } catch {
-        // Fallback to HEAD
-        ref = 'HEAD';
+        // Try to get exact tag
+        try {
+          const tag = await git.raw(['describe', '--tags', '--exact-match']);
+          if (tag) {
+            ref = `refs/tags/${tag.trim()}`;
+          }
+        } catch {
+          // Fallback to HEAD
+          ref = 'HEAD';
+        }
       }
     }
 

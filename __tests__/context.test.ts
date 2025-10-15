@@ -102,15 +102,15 @@ describe('getContext', () => {
   });
 
   it('should return git context', async () => {
-    jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
-      return {
-        sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
-        ref: 'refs/heads/dev',
-        commitDate: new Date('2024-11-13T13:42:28.000Z'),
-        remoteUrl: 'https://github.com/test/repo.git',
-        defaultBranch: 'master'
-      };
-    });
+        jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
+          return {
+            sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
+            ref: process.env.GITHUB_REF || 'refs/heads/dev',
+            commitDate: new Date('2024-11-13T13:42:28.000Z'),
+            remoteUrl: 'https://github.com/test/repo.git',
+            defaultBranch: 'master'
+          };
+        });
 
     const context = await getContext();
     expect(context.ref).toEqual('refs/heads/dev');

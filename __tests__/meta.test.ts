@@ -9,16 +9,6 @@ import {getGitContext} from '../src/git';
 
 import repoFixture from './fixtures/repo.json';
 
-jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
-  return {
-    sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
-    ref: 'refs/heads/dev',
-    commitDate: new Date('2024-11-13T13:42:28.000Z'),
-    remoteUrl: 'https://github.com/docker/repo.git',
-    defaultBranch: 'master'
-  };
-});
-
 jest.spyOn(global.Date.prototype, 'toISOString').mockImplementation(() => {
   return '2020-01-10T00:30:00.000Z';
 });
@@ -51,6 +41,18 @@ describe('isRawStatement', () => {
 
 const tagsLabelsTest = async (name: string, envFile: string, inputs: Inputs, exVersion: Version, exTags: Array<string>, exLabels: Array<string>, exAnnotations: Array<string> | undefined) => {
   process.env = dotenv.parse(fs.readFileSync(path.join(__dirname, 'fixtures', envFile)));
+  
+  // Mock getGitContext after environment variables are loaded
+  jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
+    return {
+      sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
+      ref: process.env.GITHUB_REF || 'refs/heads/dev',
+      commitDate: new Date('2024-11-13T13:42:28.000Z'),
+      remoteUrl: 'https://github.com/docker/repo.git',
+      defaultBranch: 'master'
+    };
+  });
+  
   const repo = {
     name: 'repo',
     description: 'Docker repository',
