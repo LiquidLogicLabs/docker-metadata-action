@@ -1,5 +1,7 @@
 import simpleGit, {SimpleGit} from 'simple-git';
 
+// Git context extraction using simple-git library
+
 export interface GitContext {
   sha: string;
   ref: string;
