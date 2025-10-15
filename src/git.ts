@@ -97,8 +97,8 @@ export function parseRepoFromRemoteUrl(remoteUrl: string, defaultBranch: string)
     // Parse GitHub/GitLab style URLs
     // SSH: git@github.com:user/repo.git
     // HTTPS: https://github.com/user/repo.git
-    const sshMatch = remoteUrl.match(/git@([^:]+):([^\/]+)\/(.+?)(?:\.git)?$/);
-    const httpsMatch = remoteUrl.match(/https?:\/\/([^\/]+)\/([^\/]+)\/(.+?)(?:\.git)?$/);
+    const sshMatch = remoteUrl.match(/git@([^:]+):([^/]+)\/(.+?)(?:\.git)?$/);
+    const httpsMatch = remoteUrl.match(/https?:\/\/([^/]+)\/([^/]+)\/(.+?)(?:\.git)?$/);
 
     if (sshMatch) {
       const [, host, user, repo] = sshMatch;
