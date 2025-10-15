@@ -1,18 +1,50 @@
-[![GitHub release](https://img.shields.io/github/release/docker/metadata-action.svg?style=flat-square)](https://github.com/docker/metadata-action/releases/latest)
+[![GitHub release](https://img.shields.io/github/release/LiquidLogicLabs/docker-metadata-action.svg?style=flat-square)](https://github.com/LiquidLogicLabs/docker-metadata-action/releases/latest)
 [![GitHub marketplace](https://img.shields.io/badge/marketplace-docker--metadata--action-blue?logo=github&style=flat-square)](https://github.com/marketplace/actions/docker-metadata-action)
-[![CI workflow](https://img.shields.io/github/actions/workflow/status/docker/metadata-action/ci.yml?branch=master&label=ci&logo=github&style=flat-square)](https://github.com/docker/metadata-action/actions?workflow=ci)
-[![Test workflow](https://img.shields.io/github/actions/workflow/status/docker/metadata-action/test.yml?branch=master&label=test&logo=github&style=flat-square)](https://github.com/docker/metadata-action/actions?workflow=test)
-[![Codecov](https://img.shields.io/codecov/c/github/docker/metadata-action?logo=codecov&style=flat-square)](https://codecov.io/gh/docker/metadata-action)
+[![CI workflow](https://img.shields.io/github/actions/workflow/status/LiquidLogicLabs/docker-metadata-action/ci.yml?branch=master&label=ci&logo=github&style=flat-square)](https://github.com/LiquidLogicLabs/docker-metadata-action/actions?workflow=ci)
+[![Test workflow](https://img.shields.io/github/actions/workflow/status/LiquidLogicLabs/docker-metadata-action/test.yml?branch=master&label=test&logo=github&style=flat-square)](https://github.com/LiquidLogicLabs/docker-metadata-action/actions?workflow=test)
+[![Codecov](https://img.shields.io/codecov/c/github/LiquidLogicLabs/docker-metadata-action?logo=codecov&style=flat-square)](https://codecov.io/gh/LiquidLogicLabs/docker-metadata-action)
 
 ## About
 
-> **Note**: This fork has been modified to use git commands directly instead of the GitHub API.
-> It still functions as a GitHub Action but extracts all metadata from git repository information
-> using the `simple-git` library, removing the dependency on `@actions/github` and `@docker/actions-toolkit`.
+> **Fork Notice**: This is a fork of [docker/metadata-action](https://github.com/docker/metadata-action) that has been modified to remove all dependencies on GitHub APIs. This allows it to work with any git repository, not just GitHub-hosted ones.
+
+### Key Differences from Original
+
+- **No GitHub API Dependencies**: Uses direct git commands via the `simple-git` library instead of GitHub API calls
+- **Universal Git Support**: Works with any git repository (GitHub, GitLab, Bitbucket, self-hosted, etc.)
+- **Faster Execution**: Direct git commands are faster than API calls
+- **No Rate Limits**: Doesn't consume GitHub API quota
+- **Local Testing**: Can be tested locally without GitHub connection
+- **Same Interface**: Maintains full compatibility with the original action's inputs and outputs
+
+### What Was Removed
+
+- `@actions/github` - GitHub API wrapper
+- `@docker/actions-toolkit` - Docker's toolkit that wraps GitHub API
+- All GitHub-specific context and event handling
+
+### What Was Added
+
+- `simple-git` - Clean wrapper around git CLI commands
+- Direct git repository metadata extraction
+- Local testing capabilities
 
 GitHub Action to extract metadata from Git references for Docker image tagging and labeling.
 This action is particularly useful if used with [Docker Build Push](https://github.com/docker/build-push-action)
 action to tag and label Docker images.
+
+### Compatibility
+
+✅ **Fully Compatible**: All inputs, outputs, and functionality work exactly the same as the original action
+✅ **Universal Git**: Works with any git hosting platform (GitHub, GitLab, Bitbucket, self-hosted, etc.)
+✅ **Local Testing**: Can be tested locally using `act` or by running the scripts directly
+✅ **CI/CD Agnostic**: Works in any CI/CD system that has git access
+
+### Limitations
+
+⚠️ **No Pull Request Context**: PR-specific metadata is not available from git alone
+⚠️ **No GitHub Events**: GitHub event context (`push`, `pull_request`, etc.) is not available
+⚠️ **Simplified Base Ref**: `{{base_ref}}` expression may return empty in some cases
 
 ## Local Testing
 
@@ -63,6 +95,11 @@ providing a realistic test environment that matches GitHub's infrastructure.
 ___
 
 - [About](#about)
+  - [Key Differences from Original](#key-differences-from-original)
+  - [What Was Removed](#what-was-removed)
+  - [What Was Added](#what-was-added)
+  - [Compatibility](#compatibility)
+  - [Limitations](#limitations)
 - [Local Testing](#local-testing)
   - [Install act](#install-act)
   - [Run Tests](#run-tests)
@@ -132,7 +169,7 @@ jobs:
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: name/app
       -
@@ -186,7 +223,7 @@ jobs:
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: |
             name/app
@@ -261,7 +298,7 @@ jobs:
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: |
             name/app
@@ -763,7 +800,7 @@ increase this length for larger repositories by setting the
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: |
             name/app
@@ -910,7 +947,7 @@ workflow run. Will be empty for a branch reference:
 > return the expected branch when the push tag event occurs. It's also
 > [not documented in GitHub docs](https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#push).
 > We keep it for backward compatibility, but it's **not recommended relying on it**.
-> More context in [#192](https://github.com/docker/metadata-action/pull/192#discussion_r854673012). 
+> More context in [#192](https://github.com/LiquidLogicLabs/docker-metadata-action/pull/192#discussion_r854673012). 
 
 #### `{{is_default_branch}}`
 
@@ -974,7 +1011,7 @@ that you can reuse them further in your workflow using the [`fromJSON` function]
 ```yaml
       -
         name: Docker meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         id: meta
         with:
           images: name/app
@@ -1000,7 +1037,7 @@ this:
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: name/app
           labels: |
@@ -1022,7 +1059,7 @@ of the `metadata-action`:
 ```yaml
       -
         name: Docker meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: name/app
       -
@@ -1038,7 +1075,7 @@ The same can be done with the [`bake-action`](https://github.com/docker/bake-act
 ```yaml
       -
         name: Docker meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: name/app
       -
@@ -1067,7 +1104,7 @@ Please consult the documentation of your registry.
 ```yaml
       -
         name: Docker meta
-        uses: docker/metadata-action@v5
+        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
         with:
           images: name/app
         env:

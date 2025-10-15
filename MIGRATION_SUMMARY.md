@@ -75,7 +75,7 @@ The action works exactly as before in workflows:
 
 ```yaml
 - name: Docker metadata
-  uses: ravensorb/docker-metadata-action@master
+  uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
   with:
     images: |
       myorg/myapp

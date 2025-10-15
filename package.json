@@ -1,5 +1,6 @@
 {
   "name": "docker-metadata-action",
+  "version": "0.1.0",
   "description": "GitHub Action to extract metadata (tags, labels) for Docker using git commands",
   "main": "src/main.ts",
   "scripts": {
@@ -14,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docker/metadata-action.git"
+    "url": "git+https://github.com/LiquidLogicLabs/docker-metadata-action.git"
   },
   "keywords": [
     "actions",
