@@ -1,23 +1,56 @@
 name: publish
 
-# TEMPORARILY DISABLED
 on:
-  # release:
-  #   types:
-  #     - published
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (defaults to latest tag)'
+        required: false
 
 jobs:
-  publish:
+  bundle:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
-      packages: write
+      contents: write
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v5
-      -
-        name: Publish
-        uses: actions/publish-immutable-action@v0.0.4
+        with:
+          fetch-depth: 0
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout tag
+        run: |
+          git checkout ${{ steps.tag.outputs.value }}
+
+      - name: Install dependencies
+        run: corepack yarn install --immutable
+
+      - name: Build dist bundle
+        run: corepack yarn build
+
+      - name: Zip bundle
+        run: |
+          mkdir -p release
+          tar -czf release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz dist
+
+      - name: Create release if needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.tag.outputs.value }}" >/dev/null 2>&1 || \
+            gh release create "${{ steps.tag.outputs.value }}" --title "${{ steps.tag.outputs.value }}" --notes "Automated release bundle"
+
+      - name: Upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz
+          tag_name: ${{ steps.tag.outputs.value }}
