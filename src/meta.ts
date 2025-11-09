@@ -110,7 +110,7 @@ export class Meta {
 
   private procSchedule(version: Version, tag: tcl.Tag): Version {
     // Only process schedule tags when the event is actually a schedule event
-    if (this.context.eventName !== 'schedule') {
+    if (!/schedule/.test(this.context.eventName)) {
       return version;
     }
     
@@ -475,15 +475,15 @@ export class Meta {
     return images;
   }
 
-  public getTags(): Array<string> {
+  public getTags(namesOnly = false): Array<string> {
     if (!this.version.main) {
       return [];
     }
 
-    const generateTags = (imageName: string, version: string): Array<string> => {
+    const generateTags = (imageName?: string): Array<string> => {
+      const prefix = imageName ? `${imageName}:` : '';
       const tags: Array<string> = [];
-      const prefix = imageName !== '' ? `${imageName}:` : '';
-      tags.push(`${prefix}${version}`);
+      tags.push(`${prefix}${this.version.main}`);
       for (const partial of this.version.partial) {
         tags.push(`${prefix}${partial}`);
       }
@@ -494,14 +494,18 @@ export class Meta {
       return tags;
     };
 
+    if (namesOnly) {
+      return generateTags();
+    }
+
     const tags: Array<string> = [];
     const images = this.getImageNames();
     if (images.length > 0) {
       for (const imageName of images) {
-        tags.push(...generateTags(imageName, this.version.main));
+        tags.push(...generateTags(imageName));
       }
     } else {
-      tags.push(...generateTags('', this.version.main));
+      tags.push(...generateTags());
     }
     return tags;
   }
@@ -549,6 +553,7 @@ export class Meta {
     }
     return {
       tags: this.getTags(),
+      'tag-names': this.getTags(true),
       labels: this.getLabels().reduce((res, label) => {
         const matches = label.match(/([^=]*)=(.*)/);
         if (!matches) {

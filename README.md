@@ -383,15 +383,15 @@ The following inputs can be used as `step.with` keys:
 
 | Name              | Type   | Description                                                                  |
 |-------------------|--------|------------------------------------------------------------------------------|
-| `images`          | List   | List of Docker images to use as base name for tags                           |
-| `tags`            | List   | List of [tags](#tags-input) as key-value pair attributes                     |
-| `flavor`          | List   | [Flavor](#flavor-input) to apply                                             |
-| `labels`          | List   | List of custom labels                                                        |
-| `annotations`     | List   | List of custom annotations                                                   |
-| `sep-tags`        | String | Separator to use for tags output (default `\n`)                              |
-| `sep-labels`      | String | Separator to use for labels output (default `\n`)                            |
-| `sep-annotations` | String | Separator to use for annotations output (default `\n`)                       |
-| `bake-target`     | String | Bake target name (default `docker-metadata-action`)                          |
+| `images`          | List   | List of Docker images to use as base name for tags                          |
+| `tags`            | List   | List of [tags](#tags-input) as key-value pair attributes                    |
+| `flavor`          | List   | [Flavor](#flavor-input) to apply                                            |
+| `labels`          | List   | List of custom labels                                                       |
+| `annotations`     | List   | List of custom annotations                                                  |
+| `sep-tags`        | String | Separator to use for tags output (default `\n`)                             |
+| `sep-labels`      | String | Separator to use for labels output (default `\n`)                           |
+| `sep-annotations` | String | Separator to use for annotations output (default `\n`)                      |
+| `bake-target`     | String | Bake target name (default `docker-metadata-action`)                         |
 
 ### outputs
 
@@ -401,6 +401,7 @@ The following outputs are available:
 |-------------------------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `version`               | String | Docker image version                                                                                                                                            |
 | `tags`                  | String | Docker tags                                                                                                                                                     |
+| `tag-names`             | String | Docker tag names without the image base name                                                                                                                    |
 | `labels`                | String | Docker labels                                                                                                                                                   |
 | `annotations`           | String | [Annotations](https://github.com/moby/buildkit/blob/master/docs/annotations.md)                                                                                 |
 | `json`                  | String | JSON output of tags and labels                                                                                                                                  |
@@ -412,6 +413,7 @@ Alternatively, each output is also exported as an environment variable when `DOC
 
 * `DOCKER_METADATA_OUTPUT_VERSION`
 * `DOCKER_METADATA_OUTPUT_TAGS`
+* `DOCKER_METADATA_OUTPUT_TAG_NAMES`
 * `DOCKER_METADATA_OUTPUT_LABELS`
 * `DOCKER_METADATA_OUTPUT_ANNOTATIONS`
 * `DOCKER_METADATA_OUTPUT_JSON`

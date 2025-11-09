@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as core from '@actions/core';
 
-import {getContext, getInputs, Inputs, Context} from './context';
+import {getContext, getInputs, Inputs} from './context';
 import {getGitContext, parseRepoFromRemoteUrl, Repo} from './git';
 import {Meta, Version} from './meta';
 
@@ -20,12 +20,13 @@ function outputEnvEnabled(): boolean {
 async function run() {
   try {
     const inputs: Inputs = getInputs();
-    const context: Context = await getContext();
+    const context = await getContext(inputs.context);
     const gitContext = await getGitContext();
     const repo: Repo = parseRepoFromRemoteUrl(gitContext.remoteUrl || '', gitContext.defaultBranch);
     const setOutput = outputEnvEnabled() ? setOutputAndEnv : core.setOutput;
 
     await core.group(`Context info`, async () => {
+      core.info(`eventName: ${context.eventName}`);
       core.info(`sha: ${context.sha}`);
       core.info(`ref: ${context.ref}`);
       core.info(`commitDate: ${context.commitDate}`);
@@ -43,7 +44,6 @@ async function run() {
     }
     setOutput('version', version.main || '');
 
-    // Docker tags
     const tags: Array<string> = meta.getTags();
     if (tags.length == 0) {
       core.warning('No Docker tag has been generated. Check tags input.');
@@ -55,8 +55,8 @@ async function run() {
       });
     }
     setOutput('tags', tags.join(inputs.sepTags));
+    setOutput('tag-names', meta.getTags(true).join(inputs.sepTags));
 
-    // Docker labels
     const labels: Array<string> = meta.getLabels();
     await core.group(`Docker labels`, async () => {
       for (const label of labels) {
@@ -65,7 +65,6 @@ async function run() {
       setOutput('labels', labels.join(inputs.sepLabels));
     });
 
-    // Annotations
     const annotationsRaw: Array<string> = meta.getAnnotations();
     const annotationsLevels = process.env.DOCKER_METADATA_ANNOTATIONS_LEVELS || 'manifest';
     await core.group(`Annotations`, async () => {
@@ -82,14 +81,12 @@ async function run() {
       setOutput(`annotations`, annotations.join(inputs.sepAnnotations));
     });
 
-    // JSON
     const jsonOutput = meta.getJSON(annotationsLevels.split(','));
     await core.group(`JSON output`, async () => {
       core.info(JSON.stringify(jsonOutput, null, 2));
       setOutput('json', JSON.stringify(jsonOutput));
     });
 
-    // Bake files
     for (const kind of ['tags', 'labels', 'annotations:' + annotationsLevels]) {
       const outputName = kind.split(':')[0];
       const bakeFile: string = meta.getBakeFile(kind);
@@ -99,10 +96,9 @@ async function run() {
       });
     }
 
-    // Bake file with tags and labels
     setOutput(`bake-file`, `${meta.getBakeFileTagsLabels()}`);
   } catch (error) {
-    core.setFailed(error.message);
+    core.setFailed((error as Error).message);
   }
 }
 

@@ -3,8 +3,8 @@ import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import {getContext, getInputs, Inputs} from '../src/context';
-import {getGitContext} from '../src/git';
+import {ContextSource, getContext, getInputs, Inputs} from '../src/context';
+import * as gitModule from '../src/git';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -28,6 +28,7 @@ describe('getInputs', () => {
         ['images', 'moby/buildkit\nghcr.io/moby/mbuildkit'],
       ]),
       {
+        context: ContextSource.git,
         bakeTarget: 'docker-metadata-action',
         flavor: [],
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
@@ -36,7 +37,12 @@ describe('getInputs', () => {
         sepLabels: '\n',
         sepTags: '\n',
         sepAnnotations: '\n',
-        tags: [],
+        tags: [
+          'type=schedule',
+          'type=ref,event=branch',
+          'type=ref,event=tag',
+          'type=ref,event=pr'
+        ],
       } as Inputs
     ],
     [
@@ -49,6 +55,7 @@ describe('getInputs', () => {
         ['sep-annotations', ',']
       ]),
       {
+        context: ContextSource.git,
         bakeTarget: 'metadata',
         flavor: [],
         images: ['moby/buildkit'],
@@ -57,7 +64,12 @@ describe('getInputs', () => {
         sepLabels: ',',
         sepTags: ',',
         sepAnnotations: ',',
-        tags: [],
+        tags: [
+          'type=schedule',
+          'type=ref,event=branch',
+          'type=ref,event=tag',
+          'type=ref,event=pr'
+        ],
       } as Inputs
     ],
     [
@@ -66,6 +78,7 @@ describe('getInputs', () => {
         ['images', 'moby/buildkit\n#comment\nghcr.io/moby/mbuildkit'],
       ]),
       {
+        context: ContextSource.git,
         bakeTarget: 'docker-metadata-action',
         flavor: [],
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
@@ -74,7 +87,12 @@ describe('getInputs', () => {
         sepLabels: '\n',
         sepTags: '\n',
         sepAnnotations: '\n',
-        tags: [],
+        tags: [
+          'type=schedule',
+          'type=ref,event=branch',
+          'type=ref,event=tag',
+          'type=ref,event=pr'
+        ],
       } as Inputs
     ],
   ])(
@@ -99,23 +117,43 @@ describe('getContext', () => {
   });
   afterEach(() => {
     process.env = originalEnv;
+    jest.restoreAllMocks();
   });
 
   it('should return git context', async () => {
-        jest.spyOn(require('../src/git'), 'getGitContext').mockImplementation(async () => {
-          return {
-            sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
-            ref: process.env.GITHUB_REF || 'refs/heads/dev',
-            commitDate: new Date('2024-11-13T13:42:28.000Z'),
-            remoteUrl: 'https://github.com/test/repo.git',
-            defaultBranch: 'master'
-          };
-        });
+    jest.spyOn(gitModule, 'getGitContext').mockImplementation(async () => {
+      return {
+        sha: '5f3331d7f7044c18ca9f12c77d961c4d7cf3276a',
+        ref: process.env.GITHUB_REF || 'refs/heads/dev',
+        commitDate: new Date('2024-11-13T13:42:28.000Z'),
+        remoteUrl: 'https://github.com/test/repo.git',
+        defaultBranch: 'master'
+      };
+    });
 
-    const context = await getContext();
+    const context = await getContext(ContextSource.git);
     expect(context.ref).toEqual('refs/heads/dev');
     expect(context.sha).toEqual('5f3331d7f7044c18ca9f12c77d961c4d7cf3276a');
     expect(context.commitDate).toEqual(new Date('2024-11-13T13:42:28.000Z'));
+  });
+
+  it('should fall back to git commit date when workflow payload missing', async () => {
+    jest.spyOn(gitModule, 'getGitContext').mockImplementation(async () => {
+      return {
+        sha: 'payload-sha',
+        ref: 'refs/heads/workflow-branch',
+        commitDate: new Date('2022-01-01T00:00:00.000Z'),
+        remoteUrl: 'https://github.com/test/repo.git',
+        defaultBranch: 'main'
+      };
+    });
+    process.env.GITHUB_SHA = 'payload-sha';
+    process.env.GITHUB_REF = 'refs/heads/workflow-branch';
+    delete process.env.GITHUB_EVENT_PATH;
+    const context = await getContext(ContextSource.workflow);
+    expect(context.ref).toEqual('refs/heads/workflow-branch');
+    expect(context.sha).toEqual('payload-sha');
+    expect(context.commitDate).toEqual(new Date('2022-01-01T00:00:00.000Z'));
   });
 });
 

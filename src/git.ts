@@ -20,38 +20,29 @@ export async function getGitContext(): Promise<GitContext> {
   const git: SimpleGit = simpleGit();
 
   try {
-    // Get current commit SHA
     const sha = await git.revparse(['HEAD']);
 
-    // Get ref from GitHub Actions environment variables first, then fallback to git
     let ref = '';
     if (process.env.GITHUB_REF) {
-      // Use GitHub Actions ref (most accurate for the triggering event)
       ref = process.env.GITHUB_REF;
     } else {
-      // Fallback to git commands for local testing
       try {
-        // Try to get symbolic ref (branch)
         ref = await git.revparse(['--symbolic-full-name', 'HEAD']);
       } catch {
-        // Try to get exact tag
         try {
           const tag = await git.raw(['describe', '--tags', '--exact-match']);
           if (tag) {
             ref = `refs/tags/${tag.trim()}`;
           }
         } catch {
-          // Fallback to HEAD
           ref = 'HEAD';
         }
       }
     }
 
-    // Get commit date
     const commitDateStr = await git.show(['-s', '--format=%cI', 'HEAD']);
     const commitDate = commitDateStr ? new Date(commitDateStr.trim()) : new Date();
 
-    // Get remote URL
     let remoteUrl = '';
     try {
       const url = await git.remote(['get-url', 'origin']);
@@ -60,18 +51,14 @@ export async function getGitContext(): Promise<GitContext> {
       // No remote configured
     }
 
-    // Get default branch
     let defaultBranch = '';
     try {
       const remoteHead = await git.revparse(['--symbolic-full-name', 'refs/remotes/origin/HEAD']);
       if (remoteHead) {
-        // Extract branch name from refs/remotes/origin/HEAD -> refs/remotes/origin/main
         defaultBranch = remoteHead.trim().replace(/^refs\/remotes\/origin\//, '');
       }
     } catch {
-      // Fallback to common defaults
       try {
-        // Try to get default branch from remote
         const branches = await git.branch(['-r']);
         if (branches.all.includes('origin/main')) {
           defaultBranch = 'main';
@@ -91,7 +78,7 @@ export async function getGitContext(): Promise<GitContext> {
       defaultBranch
     };
   } catch (error) {
-    throw new Error(`Failed to get git context: ${error.message}`);
+    throw new Error(`Failed to get git context: ${(error as Error).message}`);
   }
 }
 
@@ -100,9 +87,6 @@ export function parseRepoFromRemoteUrl(remoteUrl: string, defaultBranch: string)
   let url = '';
 
   if (remoteUrl) {
-    // Parse GitHub/GitLab style URLs
-    // SSH: git@github.com:user/repo.git
-    // HTTPS: https://github.com/user/repo.git
     const sshMatch = remoteUrl.match(/git@([^:]+):([^/]+)\/(.+?)(?:\.git)?$/);
     const httpsMatch = remoteUrl.match(/https?:\/\/([^/]+)\/([^/]+)\/(.+?)(?:\.git)?$/);
 
@@ -115,7 +99,6 @@ export function parseRepoFromRemoteUrl(remoteUrl: string, defaultBranch: string)
       name = repo;
       url = `https://${host}/${user}/${repo}`;
     } else {
-      // Fallback: use last part of path
       const parts = remoteUrl.split('/');
       name = parts[parts.length - 1].replace(/\.git$/, '');
       url = remoteUrl;
@@ -130,3 +113,4 @@ export function parseRepoFromRemoteUrl(remoteUrl: string, defaultBranch: string)
     license: ''
   };
 }
+
