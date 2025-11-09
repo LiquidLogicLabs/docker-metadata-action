@@ -6,9 +6,17 @@ on:
       tag:
         description: 'Release tag (defaults to latest tag)'
         required: false
+  workflow_run:
+    workflows: ['test']
+    types: ['completed']
 
 jobs:
   bundle:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       contains(github.event.workflow_run.head_commit.message, 'chore(release): '))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -17,12 +25,23 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
       - name: Determine tag
         id: tag
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          sanitize() {
+            echo "$1" | sed 's#^refs/tags/##'
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TAG=$(git tag --points-at "${{ github.event.workflow_run.head_sha }}" | head -n 1)
+            if [ -z "$TAG" ]; then
+              TAG=$(git describe --tags --abbrev=0)
+            fi
+            echo "value=$(sanitize "$TAG")" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "value=$(sanitize "${{ github.event.inputs.tag }}")" >> "$GITHUB_OUTPUT"
           else
             echo "value=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
           fi
@@ -43,13 +62,22 @@ jobs:
           tar -czf release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz dist
 
       - name: Create release if needed
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "${{ steps.tag.outputs.value }}" >/dev/null 2>&1 || \
-            gh release create "${{ steps.tag.outputs.value }}" --title "${{ steps.tag.outputs.value }}" --notes "Automated release bundle"
+          TAG=${{ steps.tag.outputs.value }}
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release $TAG already exists; skipping asset upload."
+            exit 0
+          fi
+
+          gh release create "$TAG" --title "$TAG" --notes "Automated release bundle"
+          echo "created=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload assets
+        if: steps.release.outputs.created != 'false'
         uses: softprops/action-gh-release@v2
         with:
           files: release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz
