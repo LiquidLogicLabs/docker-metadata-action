@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.3](https://github.com/LiquidLogicLabs/docker-metadata-action/compare/v5.9.0...v0.1.3) (2025-11-09)
+
+
+### Features
+
+* update action metadata and temporarily disable publish workflow ([6ed148c](https://github.com/LiquidLogicLabs/docker-metadata-action/commit/6ed148c7ef1d5b73782f8c73039bfaf57d9431c0))
+
+### [0.1.2](https://github.com/LiquidLogicLabs/docker-metadata-action/compare/v0.1.1...v0.1.2) (2025-10-15)
+
+
+### Features
+
+* add automated release system using standard-version ([c3bd111](https://github.com/LiquidLogicLabs/docker-metadata-action/commit/c3bd111d2e904b3249053da9db50a2389daf167f))
+
+## [0.1.0](https://github.com/LiquidLogicLabs/docker-metadata-action/compare/v5.8.0...v0.1.0) (2025-10-15)
+
+
+### Features
+
+* add documentation skip optimization to CI workflows ([14177d7](https://github.com/LiquidLogicLabs/docker-metadata-action/commit/14177d75e48fcd76abbbc54b4649c6004822ae83))
+
 ### [0.1.1](https://github.com/LiquidLogicLabs/docker-metadata-action/compare/v0.1.0...v0.1.1) (2025-10-15)
 
 
