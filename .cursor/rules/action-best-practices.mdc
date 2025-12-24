@@ -1,0 +1,894 @@
+# GitHub/Gitea Action Best Practices
+
+This document outlines best practices for creating GitHub/Gitea Actions based on patterns used in LiquidLogicLabs action repositories.
+
+## Project Structure
+
+### Required Files
+
+- `action.yml` - Action metadata, inputs, outputs, and runtime configuration
+- `package.json` - Node.js dependencies and build scripts
+- `tsconfig.json` - TypeScript configuration
+- `CHANGELOG.md` - Keep a Changelog format (optional - only if you want to maintain a changelog file)
+- `README.md` - Comprehensive documentation with badges and examples
+- `.gitignore` - Organized by category (dependencies, build outputs, IDE, OS files, etc.)
+
+### Directory Structure
+
+```txt
+action-name/
+├── action.yml              # Action definition
+├── package.json            # Dependencies and scripts
+├── tsconfig.json           # TypeScript config
+├── CHANGELOG.md            # Keep a Changelog format
+├── README.md               # Documentation with badges
+├── .gitignore              # Organized ignore patterns
+├── src/                    # TypeScript source code
+│   ├── index.ts           # Main entry point
+│   ├── types.ts           # TypeScript type definitions
+│   └── [module].ts        # Modular code organization
+├── dist/                   # Built output (COMMITTED to git)
+│   └── index.js           # Bundled action code
+├── .github/
+│   └── workflows/
+│       ├── ci.yml         # CI workflow (calls test.yml)
+│       ├── test.yml       # Reusable test workflow
+│       └── release.yml     # Release workflow (validation, package, release)
+└── scripts/                # Optional helper scripts
+    └── [helper].js        # Release/build helpers
+```
+
+## Action Definition (action.yml)
+
+### Structure
+
+**For Node.js Actions:**
+
+```yaml
+name: 'Action Name'
+description: 'Clear, concise description of what the action does'
+author: 'Optional author name'
+inputs:
+  input_name:
+    description: 'Clear description with examples if needed'
+    required: false
+    default: 'default-value'
+outputs:
+  output_name:
+    description: 'Clear description of output value'
+runs:
+  using: 'node20'  # Always use Node.js 20
+  main: 'dist/index.js'  # Point to bundled output
+branding:
+  icon: 'icon-name'  # Choose appropriate icon
+  color: 'blue'     # Choose appropriate color
+```
+
+**For Composite Actions (shell-based):**
+
+```yaml
+name: 'Action Name'
+description: 'Clear, concise description of what the action does'
+author: 'Optional author name'
+inputs:
+  input_name:
+    description: 'Clear description with examples if needed'
+    required: false
+    default: 'default-value'
+outputs:
+  output_name:
+    description: 'Clear description of output value'
+runs:
+  using: 'composite'
+  steps:
+    - name: Step name
+      shell: bash  # or powershell, pwsh, python, etc.
+      run: ${{ github.action_path }}/script.sh
+      env:
+        INPUT_VAR: ${{ inputs.input_name }}
+branding:
+  icon: 'icon-name'  # Choose appropriate icon
+  color: 'blue'     # Choose appropriate color
+```
+
+### Best Practices
+
+- Use descriptive input/output names (snake_case)
+- Provide clear descriptions with examples for complex inputs
+- Set sensible defaults for optional inputs
+- **For Node.js actions:**
+  - Always use `node20` as the runtime
+  - Point `main` to `dist/index.js` (the bundled output)
+- **For composite actions:**
+  - Use `using: 'composite'`
+  - Reference scripts using `${{ github.action_path }}/script.sh`
+  - Set environment variables from inputs for shell scripts
+- Include branding for better GitHub Marketplace appearance
+
+## TypeScript Configuration
+
+### tsconfig.json Pattern
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "dist", "lib", "**/__tests__/**"]
+}
+```
+
+### Key Points
+
+- Target ES2022 for modern Node.js 20
+- Use CommonJS modules (required for GitHub Actions)
+- Enable strict mode for type safety
+- Generate source maps for debugging
+- Exclude test files from compilation
+
+## Package.json Configuration
+
+### Required Scripts
+
+```json
+{
+  "scripts": {
+    "build": "tsc && ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "package": "npm run build",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  }
+}
+```
+
+### Dependencies
+
+- **Runtime**: Only `@actions/core` (no other runtime deps unless absolutely necessary)
+- **Dev Dependencies**: TypeScript, ESLint, Prettier, Jest, @vercel/ncc, @types packages
+
+### Build Process
+
+1. Compile TypeScript: `tsc`
+2. Bundle with ncc: `ncc build src/index.ts -o dist --source-map --license licenses.txt`
+3. Output to `dist/index.js` (single bundled file)
+
+## Source Code Organization
+
+### Main Entry Point (src/index.ts)
+
+```typescript
+import * as core from '@actions/core';
+import { helperFunction } from './helper';
+
+async function run(): Promise<void> {
+  try {
+    // Get inputs
+    const input = core.getInput('input_name');
+    
+    // Validate inputs
+    if (!input) {
+      throw new Error('Input is required');
+    }
+    
+    // Core logic
+    const result = await helperFunction(input);
+    
+    // Set outputs
+    core.setOutput('output_name', result);
+    
+    core.info('Action completed successfully');
+  } catch (error) {
+    if (error instanceof Error) {
+      core.setFailed(error.message);
+    } else {
+      core.setFailed('Unknown error occurred');
+    }
+  }
+}
+
+// Run the action
+run();
+```
+
+### Code Organization Principles
+
+- **Modular design**: Split functionality into separate modules/files
+- **Type safety**: Define types in `types.ts` or per-module
+- **Error handling**: Always wrap in try/catch, use `core.setFailed()`
+- **Logging**: Use `core.info()`, `core.warning()`, `core.error()` appropriately
+- **Secret masking**: Use `core.setSecret()` for sensitive values
+- **Input validation**: Validate inputs early and provide clear error messages
+
+## CI/CD Workflows
+
+### Workflow Organization Pattern
+
+**Recommended Pattern**: Use a reusable `test.yml` workflow that can be called by both `ci.yml` and `release.yml`. This keeps test logic in one place and avoids duplication.
+
+```txt
+ci.yml (entry point) → test.yml (reusable workflow)
+release.yml (entry point) → test.yml (reusable workflow)
+```
+
+### CI Workflow (.github/workflows/ci.yml)
+
+**Simple Pattern** (recommended for most actions):
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+```
+
+**Full Pattern** (if you need inline steps for Node.js actions):
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  lint:
+    if: github.ref_type != 'tag'  # Skip CI on tag pushes (handled by release workflow)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true  # Don't fail CI if tests are missing
+
+      # Optional: Add integration tests for your action
+      # Example: Test the action with various inputs
+      - name: Test action with different scenarios
+        run: |
+          node dist/index.js || true
+        env:
+          INPUT_PATH: ./CHANGELOG.md
+          INPUT_VERSION: Unreleased
+        continue-on-error: true
+
+  test:
+    if: github.ref_type != 'tag'  # Skip CI on tag pushes (handled by release workflow)
+    uses: ./.github/workflows/test.yml
+```
+
+### Reusable Test Workflow (.github/workflows/test.yml)
+
+Create a reusable test workflow that can be called by both CI and release workflows:
+
+**For Node.js Actions:**
+
+```yaml
+name: Test
+
+on:
+  workflow_call:  # Only workflow_call - no direct triggers
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true  # Optional: don't fail if tests are missing
+
+      # Optional: Integration tests
+      - name: Test action with different scenarios
+        run: |
+          node dist/index.js || true
+        env:
+          INPUT_PATH: ./CHANGELOG.md
+          INPUT_VERSION: Unreleased
+        continue-on-error: true
+```
+
+**For Composite Actions:**
+
+```yaml
+name: Test
+
+on:
+  workflow_call:  # Only workflow_call - no direct triggers
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Test the action directly with various inputs
+      - name: Test - Scenario 1
+        uses: ./
+        with:
+          input-name: 'value1'
+
+      - name: Verify results
+        run: |
+          # Verify the action worked correctly
+          if [ condition ]; then
+            echo "✓ Test passed"
+          else
+            echo "✗ Test failed"
+            exit 1
+          fi
+
+      - name: Test - Scenario 2
+        uses: ./
+        with:
+          input-name: 'value2'
+
+      - name: Test Summary
+        run: |
+          echo "✅ All tests passed successfully!"
+```
+
+**Benefits:**
+
+- Single source of truth for test logic
+- Can be called by both CI and release workflows
+- Easier to maintain and update
+- Ensures tests run consistently in both CI and release processes
+
+### Release Workflow (.github/workflows/release.yml)
+
+**For Node.js Actions:**
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Semver tags only
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: [lint, test]  # REQUIRED: Lint and tests must pass before release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+
+      - name: Check version format in tag
+        id: version
+        uses: nowsprinting/check-version-format-action@v4
+        with:
+          prefix: 'v'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and package action
+        run: npm run package
+
+      - name: Generate release notes
+        id: release_notes
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          mode: "HYBRID"
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}\n\n<details>\n<summary>Pull Requests</summary>\n\n#{{PR_LIST}}\n</details>\n\n---\n\n### Usage\n\n```yaml\n- uses: org/action-name@${{ github.ref_name }}\n  with:\n    input-name: 'value'\n```"
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create/Update Major, Minor, and Latest Version Tags
+        if: steps.version.outputs.is_stable == 'true'
+        uses: simbo/action-semver-release-action@latest
+        with:
+          create-release: false  # We handle release creation separately with changelog
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: Release ${{ steps.version.outputs.full_without_prefix }}
+          body: ${{ steps.release_notes.outputs.changelog }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.is_stable != 'true' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.full_without_prefix }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.version.outputs.is_stable }}" != "true" ]; then
+            echo "- **Status**: ⚠️ Pre-release (for testing)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status**: ✅ Stable release" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version Tags Created**: \`@v${{ steps.version.outputs.major }}\`, \`@v${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}\`, \`@latest\`, \`@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+```
+
+**For Composite Actions (shell-based):**
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Semver tags only
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: test  # REQUIRED: Tests must pass before release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version format in tag
+        id: version
+        uses: nowsprinting/check-version-format-action@v4
+        with:
+          prefix: 'v'
+
+      - name: Build validation
+        run: |
+          echo "🔨 Validating action before release..."
+          
+          # Validate action.yml
+          if [ -f "action.yml" ]; then
+            echo "✓ action.yml found"
+          else
+            echo "✗ action.yml not found"
+            exit 1
+          fi
+          
+          # Validate shell scripts (adjust script names as needed)
+          if [ -f "install-script.sh" ]; then
+            chmod +x install-script.sh
+            bash -n install-script.sh  # Syntax check
+            echo "✓ install-script.sh syntax valid"
+          fi
+          
+          # Optional: Create package manifest
+          cat > package-manifest.json << EOF
+          {
+            "name": "action-name",
+            "version": "${{ steps.version.outputs.full_without_prefix }}",
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "git_sha": "${{ github.sha }}",
+            "git_ref": "${{ github.ref_name }}",
+            "platform": "${{ runner.os }}",
+            "is_prerelease": ${{ steps.version.outputs.is_stable != 'true' }}
+          }
+          EOF
+
+      - name: Generate release notes
+        id: release_notes
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          mode: "HYBRID"
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}\n\n<details>\n<summary>Pull Requests</summary>\n\n#{{PR_LIST}}\n</details>\n\n---\n\n### Usage\n\n```yaml\n- uses: org/action-name@${{ github.ref_name }}\n  with:\n    input-name: 'value'\n```"
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create/Update Major, Minor, and Latest Version Tags
+        if: steps.version.outputs.is_stable == 'true'
+        uses: simbo/action-semver-release-action@latest
+        with:
+          create-release: false  # We handle release creation separately with changelog
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: Release ${{ steps.version.outputs.full_without_prefix }}
+          body: ${{ steps.release_notes.outputs.changelog }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.is_stable != 'true' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.full_without_prefix }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.version.outputs.is_stable }}" != "true" ]; then
+            echo "- **Status**: ⚠️ Pre-release (for testing)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status**: ✅ Stable release" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version Tags Created**: \`@v${{ steps.version.outputs.major }}\`, \`@v${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}\`, \`@latest\`, \`@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+```
+
+**Key Points:**
+
+- **REQUIRED**: Always run lint and tests before release - release job must `needs: [lint, test]`
+  - **For Node.js actions**: Run linter and type checking in a separate `lint` job
+  - **For composite actions**: Linting may not be applicable, but tests are still required
+- **For Node.js actions**: Build and package before release (creates `dist/index.js`)
+- **For composite actions**: Validate `action.yml` and shell script syntax before release
+- **Self-contained**: Release workflow should run all checks independently (lint + test), not depend on external CI workflows
+- **CI Workflow**: Should skip on tag pushes using `if: github.ref_type != 'tag'` to avoid duplicate runs (release workflow handles tag pushes)
+- **Floating Tags**: Use `simbo/action-semver-release-action@latest` to create/update major (`v1`), minor (`v1.2`), and `latest` tags for stable releases
+- **Version Pinning**: Users can pin to `@v1` (major), `@v1.2` (minor), `@latest` (latest stable), or `@v1.2.3` (exact version)
+- **Optional**: Include usage examples in release notes template for better user experience
+- **Optional**: Create package manifest for tracking build metadata
+- **Optional**: Add release summary step for better workflow visibility
+
+## Git Configuration
+
+### .gitignore Organization
+
+```gitignore
+# Dependencies
+node_modules/
+
+# Build outputs
+lib/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# AI Tools
+.bmad-core/
+.github/chatmodes/
+```
+
+### Important Notes
+
+- **DO commit `dist/` folder** - It's required for the action to work
+- **DO NOT commit** `node_modules/`, `lib/`, or build artifacts
+- Organize `.gitignore` by category with comments
+
+## Documentation (README.md)
+
+### Required Sections
+
+1. **Badges** - CI status, License, TypeScript version
+2. **Description** - What the action does
+3. **Features** - Bullet list of key capabilities
+4. **Usage Examples** - Multiple real-world examples
+5. **Inputs Table** - All inputs with descriptions
+6. **Outputs Table** - All outputs with descriptions
+7. **Configuration** - If config files are supported
+8. **Examples** - Complete workflow examples
+9. **Security** - Security considerations
+10. **License** - MIT (typically)
+11. **Credits/Acknowledgments** - If based on another project
+
+### Badge Examples
+
+```markdown
+[![CI](https://github.com/org/repo/actions/workflows/ci.yml/badge.svg)](https://github.com/org/repo/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
+```
+
+## CHANGELOG.md
+
+### Format (Keep a Changelog)
+
+```markdown
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.0] - 2025-12-23
+
+### Added
+- Initial implementation
+- Feature descriptions
+
+### Changed
+- Change descriptions
+
+### Fixed
+- Bug fix descriptions
+```
+
+## Code Quality
+
+### Linting
+
+- Use ESLint with TypeScript rules
+- Configure in `.eslintrc.json`
+- Run `npm run lint` in CI
+
+### Formatting
+
+- Use Prettier for consistent formatting
+- Configure in `.prettierrc.json`
+- Format before committing
+
+### Testing
+
+- Write unit tests for core functionality
+- Use Jest with ts-jest
+- Place tests in `src/__tests__/` or alongside source files
+- Use `continue-on-error: true` in CI if tests are optional
+
+## Security Best Practices
+
+1. **Token Handling**
+   - Use `core.setSecret()` to mask tokens in logs
+   - Only use tokens when necessary
+   - Prefer environment variables over hardcoded values
+
+2. **Input Validation**
+   - Validate all inputs
+   - Sanitize user-provided data
+   - Provide clear error messages
+
+3. **Dependencies**
+   - Minimize runtime dependencies
+   - Keep dependencies up to date
+   - Review security advisories
+
+4. **No API Dependencies**
+   - Prefer standard HTTP over platform-specific APIs when possible
+   - Makes actions more portable and platform-agnostic
+
+## Release Process
+
+1. **Commit changes** to main branch (optionally update CHANGELOG.md if you maintain one)
+2. **Create semver tag**: `git tag v1.2.3`
+3. **Push tag**: `git push origin v1.2.3`
+4. **Release workflow** automatically:
+   - **Runs lint and tests** (lint job + reusable `test.yml` workflow) - **MUST pass before release**
+   - Validates version format using `check-version-format-action`
+   - **For Node.js actions**: Builds and packages the action
+   - **For composite actions**: Validates `action.yml` and shell script syntax
+   - Generates release notes from PRs/commits using `release-changelog-builder-action`
+   - **Creates/updates floating tags** (`v1`, `v1.2`, `latest`) using `simbo/action-semver-release-action` (stable releases only)
+   - Creates GitHub release with generated notes
+   - Detects prerelease status automatically
+5. **Action is available** at multiple version pins:
+   - `@v1` - Latest v1.x.x (major version)
+   - `@v1.2` - Latest v1.2.x (minor version)
+   - `@latest` - Latest stable release
+   - `@v1.2.3` - Exact version
+
+**Important**: Lint and tests are **required** to pass before a release is created. The release job uses `needs: [lint, test]` to ensure all checks complete successfully. The release workflow is self-contained and runs all validation independently.
+
+### Version Format Validation
+
+Use `nowsprinting/check-version-format-action@v4` to:
+
+- Validate semver format in tags
+- Extract version components (major, minor, patch, prerelease)
+- Determine if version is stable (for prerelease detection)
+- Get version with or without prefix
+
+### Release Notes Generation
+
+Use `mikepenz/release-changelog-builder-action@v6` to:
+
+- Generate changelog from merged PRs and commits between tags
+- **Use `mode: "HYBRID"`** to include both Pull Requests and commits
+  - This ensures releases show changes even when commits are made directly to main
+  - No need for custom commit extraction steps
+  - The `{{CHANGELOG}}` template variable automatically includes both PRs and commits
+- Customize format with templates
+- Include PR lists and contributor information
+- Configure categories and exclusions via `configurationJson`
+
+**Available modes:**
+
+- `PR` (default): Only includes Pull Requests
+- `COMMIT`: Only includes commits (treats commits like PRs)
+- `HYBRID` (recommended): Includes both PRs and commits - best for projects that use both workflows
+
+## Examples from LiquidLogicLabs Actions
+
+### changelog-parser-action
+
+- Extends functionality of existing action (changelog-reader-action)
+- Adds remote URL support with blob-to-raw conversion
+- Supports repository root URL detection and automatic CHANGELOG.md fetching
+- Comprehensive URL handling for multiple platforms (GitHub, GitLab, Bitbucket, Gitea)
+- Uses `check-version-format-action` for version validation
+- Uses `release-changelog-builder-action` with `HYBRID` mode for automated release notes generation (includes both PRs and commits)
+
+### ca-certificate-import-action
+
+- Composite action (shell-based, not TypeScript)
+- Uses reusable `test.yml` workflow called by both CI and release workflows
+- Build validation step validates `action.yml` and shell script syntax
+- Includes usage examples in release notes template
+- Creates package manifest for build metadata tracking
+- Release summary step for workflow visibility
+
+### docker-metadata-action
+
+- Node.js action for Docker metadata extraction
+- Complex CI workflow with extensive integration testing scenarios
+- Uses `standard-version` for automated versioning and changelog generation
+- Release workflow uses `workflow_run` trigger pattern (waits for test workflow completion)
+- Uses `workflow_dispatch` for manual releases
+- Creates release bundles (tar.gz) as release assets
+- Note: Uses a different release pattern than the standard approach (standard-version + workflow_run)
+
+### git-tag-info-action
+
+- Node.js action for retrieving tag information from multiple platforms (GitHub, Gitea, Bitbucket)
+- Simple CI workflow (lint + test in single job)
+- Release workflow needs updates to follow best practices:
+  - Should add lint and test jobs before release
+  - Should use `check-version-format-action` instead of manual version extraction
+  - Should add release summary step
+- Multi-platform support with unified API
+
+### gitea-action-trigger-workflow
+
+- Gitea-specific action (not GitHub)
+- Modular code organization (config, http, gitea, log modules)
+- Comprehensive error handling and logging
+- Uses conventional-changelog-cli for changelog generation
+- Includes floating tag support (v1, v1.2)
+
+## Key Principles
+
+1. **Simplicity**: Keep actions focused on a single purpose
+2. **Portability**: Avoid platform-specific APIs when possible
+3. **Documentation**: Comprehensive README with examples
+4. **Type Safety**: Use TypeScript with strict mode (for Node.js actions)
+5. **Error Handling**: Always handle errors gracefully
+6. **Testing**: Test when possible inside a runner (ex: act)
+7. **CI/CD**: Automate build, test, and release processes
+   - Use reusable workflows (`test.yml`) to avoid duplication
+   - Keep CI simple (entry point that calls reusable workflows)
+   - **Lint and tests are REQUIRED before release** - release job must use `needs: [lint, test]`
+   - Release workflow should be self-contained (runs all checks independently)
+   - Validate before releasing (lint + tests + build validation)
+   - For Node.js actions: build and package before release
+   - For composite actions: validate `action.yml` and shell script syntax
+8. **Attribution**: Credit original authors when extending existing work
