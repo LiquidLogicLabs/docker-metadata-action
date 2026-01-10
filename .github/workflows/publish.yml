@@ -29,32 +29,13 @@ jobs:
 
       - name: Determine tag
         id: tag
-        run: |
-          sanitize() {
-            echo "$1" | sed 's#^refs/tags/##'
-          }
-
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            TAG=$(git tag --points-at "${{ github.event.workflow_run.head_sha }}" | head -n 1)
-            if [ -z "$TAG" ]; then
-              TAG=$(git describe --tags --abbrev=0)
-            fi
-            echo "value=$(sanitize "$TAG")" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "value=$(sanitize "${{ github.event.inputs.tag }}")" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Validate tag version
-        id: version
         uses: LiquidLogicLabs/git-tag-validate-version-action@v1
         with:
-          tag: ${{ steps.tag.outputs.value }}
+          tag: ${{ github.event.inputs.tag || github.ref_name || github.ref }}
 
       - name: Checkout tag
         run: |
-          git checkout ${{ steps.tag.outputs.value }}
+          git checkout ${{ steps.tag.outputs.tag }}
 
       - name: Install dependencies
         run: corepack yarn install --immutable
@@ -68,19 +49,19 @@ jobs:
           tar -czf release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz dist
 
       - name: Create/Update floating tags
-        if: steps.version.outputs.hasPrerelease != 'true' && steps.version.outputs.isValid == 'true'
+        if: steps.tag.outputs.hasPrerelease != 'true' && steps.tag.outputs.isValid == 'true'
         uses: LiquidLogicLabs/git-floating-version-tags-action@v1
         with:
-          tag: ${{ steps.tag.outputs.value }}
+          tag: ${{ steps.tag.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release
         uses: LiquidLogicLabs/git-action-release@v1
         with:
-          tag: ${{ steps.tag.outputs.value }}
-          name: Release ${{ steps.version.outputs.version }}
+          tag: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.version }}
           body: Automated release bundle
           draft: false
-          prerelease: ${{ steps.version.outputs.hasPrerelease == 'true' }}
+          prerelease: ${{ steps.tag.outputs.hasPrerelease == 'true' }}
           token: ${{ secrets.GITHUB_TOKEN }}
