@@ -8,6 +8,8 @@ export interface Context {
   ref: string;
   commitDate: Date;
   eventName: string;
+  baseRef?: string;
+  defaultBranch?: string;
 }
 
 export enum ContextSource {
@@ -63,12 +65,7 @@ export function getInputs(): Inputs {
     throw new Error(`Invalid context source: ${contextInput}`);
   }
   const tagsInput = getInputList('tags', {ignoreComma: true, comment: '#'});
-  const defaultTags = [
-    'type=schedule',
-    'type=ref,event=branch',
-    'type=ref,event=tag',
-    'type=ref,event=pr'
-  ];
+  const defaultTags = ['type=schedule', 'type=ref,event=branch', 'type=ref,event=tag', 'type=ref,event=pr'];
 
   return {
     context: contextInput as ContextSource,
@@ -80,7 +77,7 @@ export function getInputs(): Inputs {
     sepTags: core.getInput('sep-tags', {trimWhitespace: false}) || `\n`,
     sepLabels: core.getInput('sep-labels', {trimWhitespace: false}) || `\n`,
     sepAnnotations: core.getInput('sep-annotations', {trimWhitespace: false}) || `\n`,
-    bakeTarget: core.getInput('bake-target') || `docker-metadata-action`
+    bakeTarget: core.getInput('bake-target') || `git-action-docker-metadata`
   };
 }
 
@@ -101,7 +98,9 @@ async function getContextFromGit(): Promise<Context> {
     sha: gitContext.sha,
     ref: gitContext.ref,
     commitDate: gitContext.commitDate,
-    eventName: process.env.GITHUB_EVENT_NAME || 'push'
+    eventName: process.env.GITHUB_EVENT_NAME || 'push',
+    baseRef: '',
+    defaultBranch: gitContext.defaultBranch
   };
 }
 
@@ -110,25 +109,43 @@ async function getContextFromWorkflow(): Promise<Context> {
   const payload = loadEventPayload();
 
   const eventName = process.env.GITHUB_EVENT_NAME || 'workflow';
-  const sha = process.env.GITHUB_SHA || gitContext.sha;
-  const ref = process.env.GITHUB_REF || gitContext.ref;
+  let sha = process.env.GITHUB_SHA || gitContext.sha;
+  let ref = process.env.GITHUB_REF || gitContext.ref;
 
-  const commitDate =
-    resolveCommitDateFromPayload(payload, sha) ??
-    gitContext.commitDate ??
-    new Date();
+  if (/pull_request_target/.test(eventName) && typeof payload?.number === 'number') {
+    ref = `refs/pull/${payload.number}/merge`;
+  }
+
+  const pullRequestHeadSha = payload?.pull_request?.head?.sha;
+  if (/true/i.test(process.env.DOCKER_METADATA_PR_HEAD_SHA || '') && eventName.includes('pull_request') && pullRequestHeadSha) {
+    sha = pullRequestHeadSha;
+  }
+
+  const commitDate = resolveCommitDateFromPayload(payload, sha) ?? gitContext.commitDate ?? new Date();
+
+  const baseRef = payload?.pull_request?.base?.ref || payload?.base_ref || '';
+  const defaultBranch = payload?.repository?.default_branch || gitContext.defaultBranch;
 
   return {
     sha,
     ref,
     commitDate,
-    eventName
+    eventName,
+    baseRef,
+    defaultBranch
   };
 }
 
 type WorkflowPayload = {
   commits?: Array<{id: string; timestamp: string}>;
   head_commit?: {id: string; timestamp: string};
+  pull_request?: {
+    head?: {sha?: string};
+    base?: {ref?: string};
+  };
+  repository?: {default_branch?: string};
+  base_ref?: string;
+  number?: number;
 };
 
 function loadEventPayload(): WorkflowPayload {

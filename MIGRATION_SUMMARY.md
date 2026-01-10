@@ -34,6 +34,7 @@ Created a new module using `simple-git` to extract context from git:
 - Simplified `Context` interface to only include: `sha`, `ref`, `commitDate`
 - Removed GitHub-specific fields: `eventName`, `workflow`, `action`, `actor`, `runNumber`, `runId`, `payload`
 - Context now extracted from git instead of GitHub Actions context
+- Workflow mode still reads `GITHUB_EVENT_PATH` when present to recover `base_ref`, PR head SHA (`DOCKER_METADATA_PR_HEAD_SHA`), and commit timestamps without API calls
 
 ### 4. Main Entry Point Updated (`src/main.ts`)
 - Kept GitHub Actions structure using `@actions/core`
@@ -56,6 +57,20 @@ Created a new module using `simple-git` to extract context from git:
 - **`src/image.ts`**: Kept core logging
 - All still use `@actions/core` for consistency with GitHub Actions
 
+### 7. Event Payload Support (no API calls)
+- Workflow mode now reads `GITHUB_EVENT_PATH` to recover:
+  - `base_ref` for PR/tag events (used by `{{base_ref}}`)
+  - PR head SHA override via `DOCKER_METADATA_PR_HEAD_SHA`
+  - Commit timestamps from payload when available
+- Default branch falls back to git remote HEAD when payload omits it.
+
+### 8. Version Alignment
+- Local version set to upstream v5.10.0 to track parity.
+
+### 9. Sync Process Documentation
+- Added `docs/UPSTREAM_SYNC_RULES.md` describing repeatable git-only upstream sync.
+- Added `.cursor/rules/upstream-sync.mdc` to enforce the sync rule automatically in Cursor.
+
 ### 7. Testing Infrastructure Added
 Created test scripts for local testing:
 - **`test-simple.sh`**: Minimal test with basic tags
@@ -75,7 +90,7 @@ The action works exactly as before in workflows:
 
 ```yaml
 - name: Docker metadata
-  uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+  uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
   with:
     images: |
       myorg/myapp
@@ -173,6 +188,13 @@ The test suite in `__tests__/` still uses GitHub Actions mocks. See `TESTS_TODO.
 - Support for additional git hosting platforms (GitLab, Bitbucket)
 - Enhanced error messages for git command failures
 - Fallback to GitHub API when available (hybrid mode)
+
+### Current Parity Snapshot (v5.10.0)
+- Inputs/outputs/tag logic aligned with upstream v5.10.0
+- Git-only context: no `@actions/github` / GitHub API calls
+- `base_ref`/PR head SHA sourced from event payload when present; empty otherwise
+- Default branch from git remote HEAD (fallback main/master)
+- dist rebuilt from current sources
 
 ## Conclusion
 

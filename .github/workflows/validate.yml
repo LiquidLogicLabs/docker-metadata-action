@@ -36,14 +36,18 @@ jobs:
     if: ${{ !needs.changes.outputs.docs }}
     runs-on: ubuntu-latest
     outputs:
-      targets: ${{ steps.generate.outputs.targets }}
+      targets: ${{ steps.list.outputs.targets || steps.generate.outputs.targets }}
     steps:
       -
         name: Checkout
         uses: actions/checkout@v5
       -
-        name: List targets
+        name: Set default targets (act safety)
         id: generate
+        run: echo "targets=[]" >> "$GITHUB_OUTPUT"
+      -
+        name: List targets
+        id: list
         uses: docker/bake-action/subaction/list-targets@v6
         with:
           target: validate

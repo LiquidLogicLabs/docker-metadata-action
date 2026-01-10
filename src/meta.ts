@@ -113,7 +113,7 @@ export class Meta {
     if (!/schedule/.test(this.context.eventName)) {
       return version;
     }
-    
+
     const currentDate = this.date;
     const commitDate = this.context.commitDate;
     const vraw = this.setValue(
@@ -419,8 +419,10 @@ export class Meta {
         return Meta.shortSha(context.sha);
       },
       base_ref: function () {
-        // In git-only mode, we don't have access to pull request base refs
-        return '';
+        if (!context.baseRef) {
+          return '';
+        }
+        return context.baseRef.replace(/^refs\/heads\//g, '');
       },
       commit_date: function (format, options) {
         const m = moment(commitDate);
@@ -627,7 +629,7 @@ export class Meta {
   }
 
   private generateBakeFile(dt, suffix?: string): string {
-    const bakeFile = path.join(os.tmpdir(), `docker-metadata-action-bake${suffix ? `-${suffix}` : ''}.json`);
+    const bakeFile = path.join(os.tmpdir(), `git-action-docker-metadata-bake${suffix ? `-${suffix}` : ''}.json`);
     fs.writeFileSync(bakeFile, JSON.stringify({target: {[this.inputs.bakeTarget]: dt}}, null, 2));
     return bakeFile;
   }

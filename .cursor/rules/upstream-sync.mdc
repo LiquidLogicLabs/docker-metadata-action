@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+# Upstream Sync Enforcement
+
+- Follow `docs/UPSTREAM_SYNC_RULES.md` when reconciling with `docker/metadata-action` (v5.x).
+- Preserve git-only/offline behavior: no `@actions/github` or GitHub API calls; prefer git CLI and workflow event payloads.
+- Ensure version numbers match the upstream tag being mirrored and rebuild `dist/` after changes.

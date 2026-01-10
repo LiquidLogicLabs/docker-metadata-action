@@ -35,7 +35,7 @@ inputs:
     description: 'Separator to use for annotations output (default \n)'
     required: false
   bake-target:
-    description: 'Bake target name (default docker-metadata-action)'
+    description: 'Bake target name (default git-action-docker-metadata)'
     required: false
 
 outputs:

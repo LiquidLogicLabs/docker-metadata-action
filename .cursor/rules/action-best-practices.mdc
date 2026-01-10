@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # GitHub/Gitea Action Best Practices
 
 This document outlines best practices for creating GitHub/Gitea Actions based on patterns used in LiquidLogicLabs action repositories.
@@ -12,6 +16,8 @@ This document outlines best practices for creating GitHub/Gitea Actions based on
 - `CHANGELOG.md` - Keep a Changelog format (optional - only if you want to maintain a changelog file)
 - `README.md` - Comprehensive documentation with badges and examples
 - `.gitignore` - Organized by category (dependencies, build outputs, IDE, OS files, etc.)
+- `.devcontainer/` - Dev container configuration (recommended for consistent development environment)
+- `.eslintrc.json` - ESLint configuration with ignore patterns (not CLI flags)
 
 ### Directory Structure
 
@@ -23,9 +29,14 @@ action-name/
 ├── CHANGELOG.md            # Keep a Changelog format
 ├── README.md               # Documentation with badges
 ├── .gitignore              # Organized ignore patterns
+├── .eslintrc.json          # ESLint configuration
+├── .devcontainer/          # Dev container configuration
+│   ├── devcontainer.json  # Container definition
+│   └── README.md          # Dev container usage instructions
 ├── src/                    # TypeScript source code
 │   ├── index.ts           # Main entry point
 │   ├── types.ts           # TypeScript type definitions
+│   ├── logger.ts          # Logger utility class (REQUIRED)
 │   └── [module].ts        # Modular code organization
 ├── dist/                   # Built output (COMMITTED to git)
 │   └── index.js           # Bundled action code
@@ -33,7 +44,10 @@ action-name/
 │   └── workflows/
 │       ├── ci.yml         # CI workflow (calls test.yml)
 │       ├── test.yml       # Reusable test workflow
-│       └── release.yml     # Release workflow (validation, package, release)
+│       ├── release.yml     # Release workflow (validation, package, release)
+│       └── .act/          # Act event files for local testing
+│           ├── event-workflow_call.json
+│           └── event-release.json
 └── scripts/                # Optional helper scripts
     └── [helper].js        # Release/build helpers
 ```
@@ -144,17 +158,40 @@ branding:
 
 ### Required Scripts
 
+**Core Scripts (all Node.js actions should have):**
+
 ```json
 {
   "scripts": {
     "build": "tsc && ncc build src/index.ts -o dist --source-map --license licenses.txt",
     "package": "npm run build",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\""
   }
 }
 ```
+
+**Act Scripts (for actions with workflows):**
+
+```json
+{
+  "scripts": {
+    "test:act": "act -W .github/workflows/test.yml --eventpath .github/workflows/.act/event-workflow_call.json",
+    "test:act:verbose": "act -W .github/workflows/test.yml --eventpath .github/workflows/.act/event-workflow_call.json -v",
+    "test:act:ci": "act -W .github/workflows/ci.yml",
+    "test:act:release": "act push --eventpath .github/workflows/.act/event-release.json",
+    "lint:act": "act -W .github/workflows/ci.yml -j lint"
+  }
+}
+```
+
+**Key Points:**
+- `test:watch` and `test:coverage` should be included for better developer experience
+- Act scripts enable local workflow testing without pushing to GitHub
+- All act scripts require `.github/workflows/.act/` directory with event JSON files
 
 ### Dependencies
 
@@ -210,7 +247,7 @@ run();
 - **Modular design**: Split functionality into separate modules/files
 - **Type safety**: Define types in `types.ts` or per-module
 - **Error handling**: Always wrap in try/catch, use `core.setFailed()`
-- **Logging**: Use `core.info()`, `core.warning()`, `core.error()` appropriately
+- **Logging**: Use the standardized `Logger` class (see "Logging" section below)
 - **Secret masking**: Use `core.setSecret()` for sensitive values
 - **Input validation**: Validate inputs early and provide clear error messages
 
@@ -237,14 +274,48 @@ on:
     branches: ['**']
   pull_request:
     branches: ['**']
+  workflow_call:  # Allow CI to be called by release workflow
+  workflow_dispatch:  # Allow manual triggering
 
 permissions:
   contents: read
   pull-requests: read
 
 jobs:
+  lint:
+    if: github.event_name != 'push' || github.ref_type != 'tag'  # Skip on tag pushes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
   test:
+    if: github.event_name != 'push' || github.ref_type != 'tag'  # Skip on tag pushes
+    needs: lint  # Tests run after lint
     uses: ./.github/workflows/test.yml
+    # test.yml runs: unit tests + integration tests (all tests except E2E)
 ```
 
 **Full Pattern** (if you need inline steps for Node.js actions):
@@ -257,10 +328,12 @@ on:
     branches: ['**']
   pull_request:
     branches: ['**']
+  workflow_call:  # Allow CI to be called by release workflow
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   lint:
-    if: github.ref_type != 'tag'  # Skip CI on tag pushes (handled by release workflow)
+    if: github.event_name != 'push' || github.ref_type != 'tag'  # Skip on tag pushes (handled by release workflow)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -290,21 +363,13 @@ jobs:
 
       - name: Run tests
         run: npm test
-        continue-on-error: true  # Don't fail CI if tests are missing
-
-      # Optional: Add integration tests for your action
-      # Example: Test the action with various inputs
-      - name: Test action with different scenarios
-        run: |
-          node dist/index.js || true
-        env:
-          INPUT_PATH: ./CHANGELOG.md
-          INPUT_VERSION: Unreleased
-        continue-on-error: true
+        # Note: Remove continue-on-error if tests are required
 
   test:
-    if: github.ref_type != 'tag'  # Skip CI on tag pushes (handled by release workflow)
+    if: github.event_name != 'push' || github.ref_type != 'tag'  # Skip on tag pushes (handled by release workflow)
+    needs: lint  # Tests run after lint
     uses: ./.github/workflows/test.yml
+    # test.yml runs: unit tests + integration tests (all tests except E2E)
 ```
 
 ### Reusable Test Workflow (.github/workflows/test.yml)
@@ -317,13 +382,17 @@ Create a reusable test workflow that can be called by both CI and release workfl
 name: Test
 
 on:
-  workflow_call:  # Only workflow_call - no direct triggers
+  workflow_call:  # Called by CI workflow
+  workflow_dispatch:  # Allow manual triggering
 
 permissions:
   contents: read
 
 jobs:
   test:
+    # Always run when called via workflow_call or workflow_dispatch
+    # This workflow only has workflow_call and workflow_dispatch triggers, so it should always run
+    if: github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -338,18 +407,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-        continue-on-error: true  # Optional: don't fail if tests are missing
+      - name: Verify Jest is installed
+        run: npx jest --version
 
-      # Optional: Integration tests
-      - name: Test action with different scenarios
-        run: |
-          node dist/index.js || true
-        env:
-          INPUT_PATH: ./CHANGELOG.md
-          INPUT_VERSION: Unreleased
-        continue-on-error: true
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run integration tests
+        run: npm run test:integration
 ```
 
 **For Composite Actions:**
@@ -403,25 +471,27 @@ jobs:
 - Easier to maintain and update
 - Ensures tests run consistently in both CI and release processes
 
-### Release Workflow (.github/workflows/release.yml)
+### E2E Tests Workflow (.github/workflows/e2e-tests.yml)
 
 **For Node.js Actions:**
 
+Create a reusable E2E tests workflow that runs end-to-end tests with real API calls:
+
 ```yaml
-name: Release
+name: E2E Tests
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'  # Semver tags only
+  workflow_call:  # Called by release workflow
+  workflow_dispatch:  # Manual trigger only
 
 permissions:
-  contents: write
-  pull-requests: read
+  contents: read
 
 jobs:
-  lint:
+  e2e:
+    # Runs for workflow_call/workflow_dispatch; tag pushes are not used here
     runs-on: ubuntu-latest
+    environment: TEST
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -435,29 +505,100 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run linter
-        run: npm run lint
+      - name: Build
+        run: npm run build
 
-      - name: Type check
-        run: npx tsc --noEmit
+      - name: Run E2E tests
+        env:
+          # GitHub E2E test configuration
+          # Note: GitHub doesn't allow GITHUB_* secrets in environments, so we use TEST_GITHUB_TOKEN
+          # This token is set in TEST environment and provides access to private test repositories
+          TEST_GITHUB_REPO: ${{ vars.TEST_GITHUB_REPO || 'org/repo' }}
+          GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+          # Gitea E2E test configuration (optional)
+          # Note: GitHub doesn't allow GITHUB_* secrets in environments, so we use TEST_GITEA_TOKEN
+          # This token is set in TEST environment and provides access to private test repositories
+          TEST_GITEA_REPO: ${{ vars.TEST_GITEA_REPO || 'owner/repo' }}
+          TEST_GITEA_URL: ${{ vars.TEST_GITEA_URL || 'https://gitea.example.com' }}
+          GITEA_TOKEN: ${{ secrets.TEST_GITEA_TOKEN }}
+        run: npm run test:e2e
+```
 
-  test:
-    uses: ./.github/workflows/test.yml
+**Key Points:**
+
+- **Single TEST environment**: Uses one `TEST` environment for all test secrets/variables
+- **Environment variables**: Uses `vars` for non-sensitive configuration (repositories, URLs)
+- **Environment secrets**: Uses `secrets` for sensitive tokens (TEST_GITHUB_TOKEN, TEST_GITEA_TOKEN)
+- **Token naming**: Uses `TEST_GITHUB_TOKEN` and `TEST_GITEA_TOKEN` instead of `GITHUB_TOKEN` in environment secrets (GitHub doesn't allow GITHUB_* secrets in environments)
+- **Graceful skipping**: E2E tests should gracefully skip if test repositories/tokens are not configured
+- **Real API calls**: E2E tests execute real API calls to verify full integration
+- **Manual triggers**: Supports `workflow_dispatch` for manual testing
+- **Secrets inherit**: When called from release workflow, use `secrets: inherit` to pass repository secrets if needed
+
+**Environment Setup:**
+
+The `TEST` environment should contain:
+
+**Variables:**
+- `TEST_GITHUB_REPO` - Repository in `owner/repo` format (e.g., `org/test-repo`)
+- `TEST_GITEA_REPO` - Repository in `owner/repo` format (optional)
+- `TEST_GITEA_URL` - Gitea base URL (optional)
+
+**Secrets:**
+- `TEST_GITHUB_TOKEN` - GitHub personal access token with `repo` scope
+- `TEST_GITEA_TOKEN` - Gitea personal access token with `repo` scope (optional)
+
+### Release Workflow (.github/workflows/release.yml)
+
+**For Node.js Actions:**
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Semver tags only
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    # CI runs: lint -> unit tests -> integration tests
+    # When manually triggered, checkout the specified tag
+    secrets: inherit
+
+  e2e-tests:
+    needs: ci  # E2E tests run after CI passes
+    uses: ./.github/workflows/e2e-tests.yml
+    secrets: inherit
+    # e2e-tests.yml runs E2E tests with TEST environment secrets
 
   release:
-    needs: [lint, test]  # REQUIRED: Lint and tests must pass before release
+    needs: [ci, e2e-tests]  # REQUIRED: CI and E2E tests must pass before release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for changelog generation
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Check version format in tag
+      - name: Parse and validate version tag
         id: version
-        uses: nowsprinting/check-version-format-action@v4
+        uses: LiquidLogicLabs/git-tag-validate-version-action@v1
         with:
-          prefix: 'v'
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+          versionType: 'auto'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -484,29 +625,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create/Update Major, Minor, and Latest Version Tags
-        if: steps.version.outputs.is_stable == 'true'
-        uses: simbo/action-semver-release-action@latest
+        if: steps.version.outputs.hasPrerelease != 'true' && steps.version.outputs.isValid == 'true'
+        uses: LiquidLogicLabs/git-floating-version-tags-action@v1
         with:
-          create-release: false  # We handle release creation separately with changelog
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
+        uses: LiquidLogicLabs/git-action-release@v1
         with:
-          tag: ${{ github.ref_name }}
-          name: Release ${{ steps.version.outputs.full_without_prefix }}
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Release ${{ steps.version.outputs.version }}
           body: ${{ steps.release_notes.outputs.changelog }}
           draft: false
-          prerelease: ${{ steps.version.outputs.is_stable != 'true' }}
+          prerelease: ${{ steps.version.outputs.hasPrerelease == 'true' }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release Summary
         run: |
           echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ steps.version.outputs.full_without_prefix }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.version.outputs.is_stable }}" != "true" ]; then
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.event.inputs.tag || github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.version.outputs.hasPrerelease }}" == "true" ]; then
             echo "- **Status**: ⚠️ Pre-release (for testing)" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **Status**: ✅ Stable release" >> $GITHUB_STEP_SUMMARY
@@ -523,6 +665,12 @@ on:
   push:
     tags:
       - 'v*.*.*'  # Semver tags only
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -540,12 +688,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Check version format in tag
+      - name: Parse and validate version tag
         id: version
-        uses: nowsprinting/check-version-format-action@v4
+        uses: LiquidLogicLabs/git-tag-validate-version-action@v1
         with:
-          prefix: 'v'
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+          versionType: 'auto'
 
       - name: Build validation
         run: |
@@ -570,12 +720,12 @@ jobs:
           cat > package-manifest.json << EOF
           {
             "name": "action-name",
-            "version": "${{ steps.version.outputs.full_without_prefix }}",
+            "version": "${{ steps.version.outputs.version }}",
             "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "git_sha": "${{ github.sha }}",
-            "git_ref": "${{ github.ref_name }}",
+            "git_ref": "${{ github.event.inputs.tag || github.ref_name }}",
             "platform": "${{ runner.os }}",
-            "is_prerelease": ${{ steps.version.outputs.is_stable != 'true' }}
+            "is_prerelease": ${{ steps.version.outputs.hasPrerelease == 'true' }}
           }
           EOF
 
@@ -592,29 +742,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create/Update Major, Minor, and Latest Version Tags
-        if: steps.version.outputs.is_stable == 'true'
-        uses: simbo/action-semver-release-action@latest
+        if: steps.version.outputs.hasPrerelease != 'true' && steps.version.outputs.isValid == 'true'
+        uses: LiquidLogicLabs/git-floating-version-tags-action@v1
         with:
-          create-release: false  # We handle release creation separately with changelog
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
+        uses: LiquidLogicLabs/git-action-release@v1
         with:
-          tag: ${{ github.ref_name }}
-          name: Release ${{ steps.version.outputs.full_without_prefix }}
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Release ${{ steps.version.outputs.version }}
           body: ${{ steps.release_notes.outputs.changelog }}
           draft: false
-          prerelease: ${{ steps.version.outputs.is_stable != 'true' }}
+          prerelease: ${{ steps.version.outputs.hasPrerelease == 'true' }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release Summary
         run: |
           echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ steps.version.outputs.full_without_prefix }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.version.outputs.is_stable }}" != "true" ]; then
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.event.inputs.tag || github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.version.outputs.hasPrerelease }}" == "true" ]; then
             echo "- **Status**: ⚠️ Pre-release (for testing)" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **Status**: ✅ Stable release" >> $GITHUB_STEP_SUMMARY
@@ -624,14 +775,20 @@ jobs:
 
 **Key Points:**
 
-- **REQUIRED**: Always run lint and tests before release - release job must `needs: [lint, test]`
-  - **For Node.js actions**: Run linter and type checking in a separate `lint` job
-  - **For composite actions**: Linting may not be applicable, but tests are still required
+- **REQUIRED**: Always run CI and tests before release
+  - **For Node.js actions**: Release job should `needs: [ci, e2e-tests]` where `ci` calls `ci.yml` (lint + unit + integration) and `e2e-tests` calls `e2e-tests.yml`
+  - **For composite actions**: Release job should `needs: test` where `test` calls `test.yml`
+- **CI Workflow Dependencies**: Test job in `ci.yml` should have `needs: lint` to ensure tests run after linting passes
+- **Secrets Inheritance**: When calling reusable workflows (`ci.yml`, `e2e-tests.yml`), use `secrets: inherit` to pass repository secrets (like `GITHUB_TOKEN`) if needed
 - **For Node.js actions**: Build and package before release (creates `dist/index.js`)
 - **For composite actions**: Validate `action.yml` and shell script syntax before release
-- **Self-contained**: Release workflow should run all checks independently (lint + test), not depend on external CI workflows
-- **CI Workflow**: Should skip on tag pushes using `if: github.ref_type != 'tag'` to avoid duplicate runs (release workflow handles tag pushes)
-- **Floating Tags**: Use `simbo/action-semver-release-action@latest` to create/update major (`v1`), minor (`v1.2`), and `latest` tags for stable releases
+- **Manual Triggers**: All workflows (`ci.yml`, `test.yml`, `e2e-tests.yml`, `release.yml`) should support `workflow_dispatch` for manual triggering
+- **Skip on Tag Pushes**: CI, test, and E2E workflows should use `if: github.event_name != 'push' || github.ref_type != 'tag'` to skip on tag pushes (release workflow handles tag pushes)
+- **CI Workflow**: Should skip on tag pushes using `if: github.event_name != 'push' || github.ref_type != 'tag'` to avoid duplicate runs while still allowing manual triggers (`workflow_dispatch`) and workflow calls (`workflow_call`)
+- **E2E Tests Pattern**: Use single `TEST` environment with `vars` for configuration and `secrets` for tokens; use `TEST_GITHUB_TOKEN` and `TEST_GITEA_TOKEN` (GitHub doesn't allow `GITHUB_*` secrets in environments)
+- **Floating Tags**: Use `LiquidLogicLabs/git-floating-version-tags-action@v1` to create/update major (`v1`), minor (`v1.2`), and `latest` tags for stable releases
+- **Version Validation**: Use `LiquidLogicLabs/git-tag-validate-version-action@v1` for version format validation and component extraction
+- **Release Action**: Use `LiquidLogicLabs/git-action-release@v1` for creating releases (supports GitHub, Gitea, and self-hosted Gitea)
 - **Version Pinning**: Users can pin to `@v1` (major), `@v1.2` (minor), `@latest` (latest stable), or `@v1.2.3` (exact version)
 - **Optional**: Include usage examples in release notes template for better user experience
 - **Optional**: Create package manifest for tracking build metadata
@@ -741,6 +898,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Use ESLint with TypeScript rules
 - Configure in `.eslintrc.json`
+- **Ignore patterns should be in `.eslintrc.json` (not CLI flags)**
+  ```json
+  {
+    "ignorePatterns": ["dist/**", "node_modules/**", "*.js", "**/__tests__/**", "**/*.test.ts"]
+  }
+  ```
+- Keep lint command simple: `"lint": "eslint src/**/*.ts"`
 - Run `npm run lint` in CI
 
 ### Formatting
@@ -754,7 +918,336 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Write unit tests for core functionality
 - Use Jest with ts-jest
 - Place tests in `src/__tests__/` or alongside source files
-- Use `continue-on-error: true` in CI if tests are optional
+- **Organize test scripts** in `package.json`:
+  ```json
+  {
+    "scripts": {
+      "test": "jest",
+      "test:unit": "jest --testPathIgnorePatterns='integration|e2e'",
+      "test:integration": "jest --testPathPattern=integration",
+      "test:e2e": "jest --testPathPattern=e2e --testTimeout=30000",
+      "test:watch": "jest --watch",
+      "test:coverage": "jest --coverage"
+    }
+  }
+  ```
+- **Important**: Quote test patterns with pipes (`'integration|e2e'`) to prevent shell interpretation
+- Tests should **fail CI** if they fail (remove `continue-on-error` unless tests are truly optional)
+- **Add Jest verification step** in workflows: `npx jest --version` to ensure Jest is properly installed
+
+## Logging
+
+### Standardized Logger Pattern
+
+**All Node.js actions MUST use a standardized `Logger` class** located in `src/logger.ts`. This ensures consistent logging behavior across all actions.
+
+#### Logger Class Structure
+
+Create `src/logger.ts` with the following pattern:
+
+```typescript
+import * as core from '@actions/core';
+
+/**
+ * Logger utility with verbose/debug support
+ * Provides consistent logging across the action
+ */
+export class Logger {
+  public readonly verbose: boolean;
+
+  constructor(verbose: boolean = false) {
+    this.verbose = verbose;
+  }
+
+  /**
+   * Log an info message
+   */
+  info(message: string): void {
+    core.info(message);
+  }
+
+  /**
+   * Log a warning message
+   */
+  warning(message: string): void {
+    core.warning(message);
+  }
+
+  /**
+   * Log an error message
+   */
+  error(message: string): void {
+    core.error(message);
+  }
+
+  /**
+   * Log a debug message - uses core.info() when verbose is true so it always shows
+   * Falls back to core.debug() when verbose is false (for when ACTIONS_STEP_DEBUG is set at workflow level)
+   */
+  debug(message: string): void {
+    if (this.verbose) {
+      core.info(`[DEBUG] ${message}`);
+    } else {
+      core.debug(message);
+    }
+  }
+}
+```
+
+#### Usage in Actions
+
+**In `action.yml`, add a `verbose` input:**
+
+```yaml
+inputs:
+  verbose:
+    description: 'Enable verbose debug logging'
+    required: false
+    default: 'false'
+```
+
+**In `src/index.ts`:**
+
+```typescript
+import * as core from '@actions/core';
+import { Logger } from './logger';
+
+async function run(): Promise<void> {
+  try {
+    const verbose = core.getBooleanInput('verbose');
+    
+    // Create logger instance
+    const logger = new Logger(verbose);
+    
+    // Use logger throughout the action
+    logger.debug('Debug message');
+    logger.info('Info message');
+    logger.warning('Warning message');
+    logger.error('Error message');
+    
+    // Pass logger to other modules
+    const result = await someFunction(logger);
+    
+  } catch (error) {
+    if (error instanceof Error) {
+      core.setFailed(error.message);
+    }
+  }
+}
+```
+
+**Pass logger to module functions:**
+
+```typescript
+// src/module.ts
+import { Logger } from './logger';
+
+export async function someFunction(logger: Logger): Promise<string> {
+  logger.debug('Starting operation');
+  // ... operation code ...
+  logger.debug('Operation complete');
+  return result;
+}
+```
+
+#### Key Benefits
+
+1. **Consistent Verbose Output**: When `verbose: true`, debug messages always show via `core.info('[DEBUG] ...')`, regardless of `ACTIONS_STEP_DEBUG` workflow setting
+2. **Workflow-Level Debug**: When `verbose: false`, debug messages still show if `ACTIONS_STEP_DEBUG` is set at the workflow level via `core.debug()`
+3. **Centralized Pattern**: All actions use the same logging pattern, making it easier to maintain and understand
+4. **Type Safety**: Logger is strongly typed and can be passed between modules
+5. **Testability**: Logger can be easily mocked in tests
+
+#### Important Notes
+
+- **Always use `verbose` as the input name** (not `debug`) for consistency
+- **Make `verbose` property `public readonly`** so it can be accessed when needed (e.g., for conditional formatting)
+- **Do NOT create inline `debugLog` helpers** - always use the Logger class
+- **Pass Logger instance to module functions** instead of passing `verbose: boolean`
+- **For backward compatibility**: If updating existing actions, you can keep a deprecated `createLogger()` function that returns a legacy logger interface
+
+#### Example: Updating Existing Actions
+
+If an action currently uses inline `debugLog` helpers:
+
+```typescript
+// OLD - Don't do this
+const debugLog = (message: string) => {
+  if (verbose) {
+    core.info(`[DEBUG] ${message}`);
+  } else {
+    core.debug(message);
+  }
+};
+```
+
+Replace with Logger class:
+
+```typescript
+// NEW - Use Logger class
+import { Logger } from './logger';
+const logger = new Logger(verbose);
+logger.debug(message);
+```
+
+#### Testing the Logger
+
+**All actions should include unit tests for the Logger class** located in `src/__tests__/logger.test.ts`. This ensures the logging behavior works correctly.
+
+**Example test file:**
+
+```typescript
+import { Logger } from '../logger';
+import * as core from '@actions/core';
+
+// Mock @actions/core
+jest.mock('@actions/core', () => ({
+  info: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+}));
+
+describe('Logger', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('with verbose disabled', () => {
+    const logger = new Logger(false);
+
+    it('should log info messages', () => {
+      logger.info('Test message');
+      expect(core.info).toHaveBeenCalledWith('Test message');
+    });
+
+    it('should log warning messages', () => {
+      logger.warning('Warning message');
+      expect(core.warning).toHaveBeenCalledWith('Warning message');
+    });
+
+    it('should log error messages', () => {
+      logger.error('Error message');
+      expect(core.error).toHaveBeenCalledWith('Error message');
+    });
+
+    it('should log debug messages using core.debug() when verbose is false', () => {
+      logger.debug('Debug message');
+      expect(core.debug).toHaveBeenCalledWith('Debug message');
+      expect(core.info).not.toHaveBeenCalled();
+    });
+
+    it('should expose verbose property', () => {
+      expect(logger.verbose).toBe(false);
+    });
+  });
+
+  describe('with verbose enabled', () => {
+    const logger = new Logger(true);
+
+    it('should log debug messages using core.info() with [DEBUG] prefix when verbose is true', () => {
+      logger.debug('Debug message');
+      expect(core.info).toHaveBeenCalledWith('[DEBUG] Debug message');
+      expect(core.debug).not.toHaveBeenCalled();
+    });
+
+    it('should expose verbose property', () => {
+      expect(logger.verbose).toBe(true);
+    });
+  });
+
+  describe('default constructor', () => {
+    it('should default to verbose=false', () => {
+      const logger = new Logger();
+      expect(logger.verbose).toBe(false);
+      logger.debug('Test');
+      expect(core.debug).toHaveBeenCalledWith('Test');
+      expect(core.info).not.toHaveBeenCalled();
+    });
+  });
+});
+```
+
+**Key test requirements:**
+
+1. **Test both verbose modes**: Verify behavior when `verbose: true` and `verbose: false`
+2. **Verify core.debug() is called**: When `verbose: false`, `debug()` should call `core.debug()`, not `core.info()`
+3. **Verify core.info() is called with [DEBUG] prefix**: When `verbose: true`, `debug()` should call `core.info('[DEBUG] ...')`
+4. **Test all log methods**: `info()`, `warning()`, `error()`, and `debug()` should be tested
+5. **Test verbose property**: Verify that `verbose` property is correctly exposed and accessible
+6. **Test default constructor**: Verify that default constructor sets `verbose: false`
+
+## Dev Container Configuration
+
+### Overview
+
+Dev containers provide a consistent development environment across all team members and match the CI/CD environment.
+
+### Structure
+
+Create `.devcontainer/devcontainer.json`:
+
+```json
+{
+  "name": "Action Name",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-20-bullseye",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "firsttris.vscode-jest-runner",
+        "orta.vscode-jest"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true,
+        "jest.autoRun": "off",
+        "jest.showCoverageOnLoad": false
+      }
+    }
+  },
+
+  "postCreateCommand": "npm install",
+  
+  "remoteUser": "node",
+  
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ]
+}
+```
+
+### Key Points
+
+- **Node.js 20**: Matches CI/CD environment
+- **Git & GitHub CLI**: Required for integration tests and git operations
+- **VS Code Extensions**: ESLint, Prettier, TypeScript, Jest Runner
+- **Auto-install**: Dependencies are automatically installed on container creation
+- **For Yarn projects**: Change `postCreateCommand` to `"yarn install"`
+
+### Act Integration
+
+Add `.github/workflows/.act/` directory with event JSON files for local workflow testing:
+
+- `event-workflow_call.json` - For testing reusable workflows
+- `event-release.json` - For testing release workflows
 
 ## Security Best Practices
 
@@ -779,16 +1272,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Release Process
 
+### Pre-Release Checklist (REQUIRED)
+
+**CRITICAL**: Never create a release tag until ALL of the following are complete:
+
+1. **Local Testing Phase** (MUST complete successfully):
+   - Run `npm test` - All tests must pass
+   - Run `npm run build` - Build must complete without errors
+   - Run `npm run lint` - Linting must pass with no errors
+   - **Fix any issues** found in tests, build, or linting
+   - **Repeat** until all local checks pass
+
+2. **CI Verification Phase** (MUST complete successfully):
+   - Push changes to main branch: `git push`
+   - **Monitor CI workflow** using one of these methods:
+     - **GitHub Web UI**: Navigate to Actions tab and watch the workflow run
+     - **GitHub API**: Use `curl` or MCP tools to check workflow status
+     - **MCP Gitea tools**: If using Gitea, use `mcp_gitea_list_repo_action_runs` and `mcp_gitea_get_repo_action_run` to monitor
+   - Wait for CI workflow to complete (status: `completed`, conclusion: `success`)
+   - **If CI fails**: 
+     - Check job logs to identify the failure
+     - Fix issues locally (return to step 1)
+     - Repeat local testing until all issues are resolved
+     - Push fixes and monitor CI again
+   - **Repeat** until CI workflow passes completely (`conclusion: success`)
+
+3. **Release Tag Creation** (ONLY after steps 1 and 2 are complete and only if explicity asked - if not prompt for permission):
+   - **DO NOT** create a tag until local tests/build AND CI workflow both pass
+   - If you created a tag prematurely, delete it: `git tag -d v1.2.3 && git push origin :refs/tags/v1.2.3`
+   - Create semver tag: `git tag -a v1.2.3 -m "Release message"`
+   - Push tag: `git push origin v1.2.3`
+   - Release workflow will automatically run (it will also run lint and tests as a safety check)
+
+### Standard Release Workflow
+
 1. **Commit changes** to main branch (optionally update CHANGELOG.md if you maintain one)
-2. **Create semver tag**: `git tag v1.2.3`
-3. **Push tag**: `git push origin v1.2.3`
-4. **Release workflow** automatically:
-   - **Runs lint and tests** (lint job + reusable `test.yml` workflow) - **MUST pass before release**
-   - Validates version format using `check-version-format-action`
+2. **Follow Pre-Release Checklist above** (local tests → CI verification → tag creation)
+3. **Create semver tag**: `git tag -a v1.2.3 -m "Release message"` (ONLY after CI passes)
+4. **Push tag**: `git push origin v1.2.3`
+5. **Release workflow** automatically:
+   - **Runs CI** (lint + unit tests + integration tests) - **MUST pass before release**
+   - **Runs E2E tests** - **MUST pass before release** (if applicable)
+   - Validates version format using `LiquidLogicLabs/git-tag-validate-version-action@v1`
    - **For Node.js actions**: Builds and packages the action
    - **For composite actions**: Validates `action.yml` and shell script syntax
    - Generates release notes from PRs/commits using `release-changelog-builder-action`
-   - **Creates/updates floating tags** (`v1`, `v1.2`, `latest`) using `simbo/action-semver-release-action` (stable releases only)
+   - **Creates/updates floating tags** (`v1`, `v1.2`, `latest`) using `LiquidLogicLabs/git-floating-version-tags-action@v1` (stable releases only)
    - Creates GitHub release with generated notes
    - Detects prerelease status automatically
 5. **Action is available** at multiple version pins:
@@ -797,16 +1326,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - `@latest` - Latest stable release
    - `@v1.2.3` - Exact version
 
-**Important**: Lint and tests are **required** to pass before a release is created. The release job uses `needs: [lint, test]` to ensure all checks complete successfully. The release workflow is self-contained and runs all validation independently.
+**Important**: CI (lint + unit + integration tests) and E2E tests are **required** to pass before a release is created. For Node.js actions, the release job uses `needs: [ci, e2e-tests]` to ensure all checks complete successfully. For composite actions, the release job uses `needs: test`. The release workflow orchestrates CI and E2E validation before creating a release.
 
 ### Version Format Validation
 
-Use `nowsprinting/check-version-format-action@v4` to:
+Use `LiquidLogicLabs/git-tag-validate-version-action@v1` to:
 
 - Validate semver format in tags
 - Extract version components (major, minor, patch, prerelease)
-- Determine if version is stable (for prerelease detection)
-- Get version with or without prefix
+- Determine if version has prerelease suffix (via `hasPrerelease` output)
+- Get version with or without prefix (via `version` output)
+- Validate version is valid (via `isValid` output)
+
+**Key Outputs:**
+- `version`: Version string without prefix (e.g., `1.2.3`)
+- `hasPrerelease`: `'true'` if version has prerelease suffix, `'false'` otherwise
+- `isValid`: `'true'` if version is valid, `'false'` otherwise
+- `major`, `minor`, `patch`: Version component numbers
 
 ### Release Notes Generation
 
@@ -835,7 +1371,7 @@ Use `mikepenz/release-changelog-builder-action@v6` to:
 - Adds remote URL support with blob-to-raw conversion
 - Supports repository root URL detection and automatic CHANGELOG.md fetching
 - Comprehensive URL handling for multiple platforms (GitHub, GitLab, Bitbucket, Gitea)
-- Uses `check-version-format-action` for version validation
+- Uses `LiquidLogicLabs/git-tag-validate-version-action@v1` for version validation
 - Uses `release-changelog-builder-action` with `HYBRID` mode for automated release notes generation (includes both PRs and commits)
 
 ### ca-certificate-import-action
@@ -863,7 +1399,7 @@ Use `mikepenz/release-changelog-builder-action@v6` to:
 - Simple CI workflow (lint + test in single job)
 - Release workflow needs updates to follow best practices:
   - Should add lint and test jobs before release
-  - Should use `check-version-format-action` instead of manual version extraction
+  - Should use `LiquidLogicLabs/git-tag-validate-version-action@v1` instead of manual version extraction
   - Should add release summary step
 - Multi-platform support with unified API
 
@@ -891,4 +1427,6 @@ Use `mikepenz/release-changelog-builder-action@v6` to:
    - Validate before releasing (lint + tests + build validation)
    - For Node.js actions: build and package before release
    - For composite actions: validate `action.yml` and shell script syntax
+   - **ALWAYS follow the Pre-Release Checklist**: Local tests → CI verification → Tag creation (in that order)
+   - **NEVER create a release tag until both local tests AND CI workflow pass successfully**
 8. **Attribution**: Credit original authors when extending existing work

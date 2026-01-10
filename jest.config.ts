@@ -2,11 +2,11 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docker-metadata-action-'));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-action-docker-metadata-'));
 
 process.env = Object.assign({}, process.env, {
   TEMP: tmpDir,
-  GITHUB_REPOSITORY: 'LiquidLogicLabs/docker-metadata-action',
+  GITHUB_REPOSITORY: 'LiquidLogicLabs/git-action-docker-metadata',
   RUNNER_TEMP: path.join(tmpDir, 'runner-temp'),
   RUNNER_TOOL_CACHE: path.join(tmpDir, 'runner-tool-cache')
 }) as {

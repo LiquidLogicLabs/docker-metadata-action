@@ -113,4 +113,3 @@ export function parseRepoFromRemoteUrl(remoteUrl: string, defaultBranch: string)
     license: ''
   };
 }
-

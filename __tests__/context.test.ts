@@ -29,7 +29,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.git,
-        bakeTarget: 'docker-metadata-action',
+        bakeTarget: 'git-action-docker-metadata',
         flavor: [],
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
         labels: [],
@@ -79,7 +79,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.git,
-        bakeTarget: 'docker-metadata-action',
+        bakeTarget: 'git-action-docker-metadata',
         flavor: [],
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
         labels: [],

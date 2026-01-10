@@ -1,4 +1,4 @@
-target "docker-metadata-action" {}
+target "git-action-docker-metadata" {}
 
 group "default" {
   targets = ["db", "app"]
@@ -14,7 +14,7 @@ target "db" {
 }
 
 target "app" {
-  inherits = ["docker-metadata-action"]
+  inherits = ["git-action-docker-metadata"]
   context = "./test"
   dockerfile = "Dockerfile"
   args = {

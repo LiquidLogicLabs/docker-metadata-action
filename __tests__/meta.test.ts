@@ -2,16 +2,16 @@ import {beforeEach, describe, expect, jest, test} from '@jest/globals';
 
 import {getContext, getInputs} from '../src/context';
 import {Meta} from '../src/meta';
-import {parseRepoFromRemoteUrl, Repo} from '../src/git';
+import * as git from '../src/git';
 
 const defaultSha = '860c1904a1ce19322e91ac35af1ab07466440c37';
 const repoRemote = 'https://github.com/octocat/Hello-World.git';
-const testRepo: Repo = parseRepoFromRemoteUrl(repoRemote, 'master');
+const testRepo: git.Repo = git.parseRepoFromRemoteUrl(repoRemote, 'master');
 testRepo.description = 'This your first repo!';
 testRepo.license = 'MIT';
 
 function mockGitContext(sha = defaultSha, ref = 'refs/heads/main') {
-  jest.spyOn(require('../src/git'), 'getGitContext').mockResolvedValue({
+  jest.spyOn(git, 'getGitContext').mockResolvedValue({
     sha,
     ref,
     commitDate: new Date('2020-01-10T00:30:00.000Z'),
@@ -93,9 +93,6 @@ describe('meta git integration', () => {
 
     expect(json.tags).toEqual(['local/app:main', 'local/app:extra']);
     expect(json['tag-names']).toEqual(['main', 'extra']);
-    expect(json.annotations).toEqual(
-      expect.arrayContaining(['manifest:org.example.build=860c190'])
-    );
+    expect(json.annotations).toEqual(expect.arrayContaining(['manifest:org.example.build=860c190']));
   });
 });
-

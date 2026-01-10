@@ -1,6 +1,6 @@
 {
   "name": "docker-metadata-action",
-  "version": "0.1.5",
+  "version": "5.10.0",
   "description": "GitHub Action to extract metadata (tags, labels) for Docker without GitHub API dependencies",
   "main": "src/main.ts",
   "scripts": {
@@ -12,6 +12,11 @@
     "prettier": "prettier --check \"./**/*.ts\"",
     "prettier:fix": "prettier --write \"./**/*.ts\"",
     "test": "jest",
+    "test:act": "act -W .github/workflows/test.yml --eventpath .github/workflows/.act/event-workflow_call.json",
+    "test:act:verbose": "act -W .github/workflows/test.yml --eventpath .github/workflows/.act/event-workflow_call.json -v",
+    "test:act:ci": "act -W .github/workflows/ci.yml --eventpath .github/workflows/.act/event-ci.json",
+    "test:act:release": "act push --workflows .github/workflows/publish.yml -j bundle --eventpath .github/workflows/.act/event-release.json",
+    "lint:act": "act -W .github/workflows/ci.yml -j lint",
     "release": "standard-version --release-as patch && git push --follow-tags origin HEAD",
     "release:patch": "standard-version --release-as patch && git push --follow-tags origin HEAD",
     "release:minor": "standard-version --release-as minor && git push --follow-tags origin HEAD",
@@ -24,7 +29,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LiquidLogicLabs/docker-metadata-action.git"
+    "url": "git+https://github.com/LiquidLogicLabs/git-action-docker-metadata.git"
   },
   "keywords": [
     "actions",

@@ -1,12 +1,13 @@
-[![GitHub release](https://img.shields.io/github/release/LiquidLogicLabs/docker-metadata-action.svg?style=flat-square)](https://github.com/LiquidLogicLabs/docker-metadata-action/releases/latest)
-[![GitHub marketplace](https://img.shields.io/badge/marketplace-docker--metadata--action-blue?logo=github&style=flat-square)](https://github.com/marketplace/actions/docker-metadata-action)
-[![CI workflow](https://img.shields.io/github/actions/workflow/status/LiquidLogicLabs/docker-metadata-action/ci.yml?branch=master&label=ci&logo=github&style=flat-square)](https://github.com/LiquidLogicLabs/docker-metadata-action/actions?workflow=ci)
-[![Test workflow](https://img.shields.io/github/actions/workflow/status/LiquidLogicLabs/docker-metadata-action/test.yml?branch=master&label=test&logo=github&style=flat-square)](https://github.com/LiquidLogicLabs/docker-metadata-action/actions?workflow=test)
-[![Codecov](https://img.shields.io/codecov/c/github/LiquidLogicLabs/docker-metadata-action?logo=codecov&style=flat-square)](https://codecov.io/gh/LiquidLogicLabs/docker-metadata-action)
+[![GitHub release](https://img.shields.io/github/release/LiquidLogicLabs/git-action-docker-metadata.svg?style=flat-square)](https://github.com/LiquidLogicLabs/git-action-docker-metadata/releases/latest)
+[![GitHub marketplace](https://img.shields.io/badge/marketplace-docker--metadata--action-blue?logo=github&style=flat-square)](https://github.com/marketplace/actions/git-action-docker-metadata)
+[![CI workflow](https://img.shields.io/github/actions/workflow/status/LiquidLogicLabs/git-action-docker-metadata/ci.yml?branch=master&label=ci&logo=github&style=flat-square)](https://github.com/LiquidLogicLabs/git-action-docker-metadata/actions?workflow=ci)
+[![Test workflow](https://img.shields.io/github/actions/workflow/status/LiquidLogicLabs/git-action-docker-metadata/test.yml?branch=master&label=test&logo=github&style=flat-square)](https://github.com/LiquidLogicLabs/git-action-docker-metadata/actions?workflow=test)
+[![Codecov](https://img.shields.io/codecov/c/github/LiquidLogicLabs/git-action-docker-metadata?logo=codecov&style=flat-square)](https://codecov.io/gh/LiquidLogicLabs/git-action-docker-metadata)
 
 ## About
 
 > **Fork Notice**: This is a fork of [docker/metadata-action](https://github.com/docker/metadata-action) that has been modified to remove all dependencies on GitHub APIs. This allows it to work with any git repository, not just GitHub-hosted ones.
+> **Sync Status**: Aligned with upstream `docker/metadata-action` v5.10.0; differences are limited to removing GitHub API calls and relying on git-derived context.
 
 ### Key Differences from Original
 
@@ -42,9 +43,9 @@ action to tag and label Docker images.
 
 ### Limitations
 
-⚠️ **No Pull Request Context**: PR-specific metadata is not available from git alone
-⚠️ **No GitHub Events**: GitHub event context (`push`, `pull_request`, etc.) is not available
-⚠️ **Simplified Base Ref**: `{{base_ref}}` expression may return empty in some cases
+⚠️ **PR Context Limited**: In git-only mode, PR metadata is unavailable; when running inside GitHub Actions, PR base/head refs are taken from the event payload (no API calls)
+⚠️ **Event Payload Dependent**: Expressions needing `base_ref` rely on `GITHUB_EVENT_PATH`; if absent, they resolve to empty
+⚠️ **Default Branch Detection**: Uses git remote default branch; forks with unusual remote setups may need explicit configuration
 
 ## Local Testing
 
@@ -169,7 +170,7 @@ jobs:
       -
         name: Docker meta
         id: meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: name/app
       -
@@ -223,7 +224,7 @@ jobs:
       -
         name: Docker meta
         id: meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: |
             name/app
@@ -261,14 +262,14 @@ jobs:
 
 This action also handles a bake definition file that can be used with the
 [Docker Bake action](https://github.com/docker/bake-action). You just have to
-declare an empty target named `docker-metadata-action` and inherit from it.
+declare an empty target named `git-action-docker-metadata` and inherit from it.
 
 ```hcl
 // docker-bake.hcl
-target "docker-metadata-action" {}
+target "git-action-docker-metadata" {}
 
 target "build" {
-  inherits = ["docker-metadata-action"]
+  inherits = ["git-action-docker-metadata"]
   context = "./"
   dockerfile = "Dockerfile"
   platforms = [
@@ -298,7 +299,7 @@ jobs:
       -
         name: Docker meta
         id: meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: |
             name/app
@@ -324,7 +325,7 @@ labels, will look like this with `refs/tags/v1.2.3` ref:
 ```json
 {
   "target": {
-    "docker-metadata-action": {
+    "git-action-docker-metadata": {
       "tags": [
         "name/app:1.2.3",
         "name/app:1.2",
@@ -391,7 +392,7 @@ The following inputs can be used as `step.with` keys:
 | `sep-tags`        | String | Separator to use for tags output (default `\n`)                             |
 | `sep-labels`      | String | Separator to use for labels output (default `\n`)                           |
 | `sep-annotations` | String | Separator to use for annotations output (default `\n`)                      |
-| `bake-target`     | String | Bake target name (default `docker-metadata-action`)                         |
+| `bake-target`     | String | Bake target name (default `git-action-docker-metadata`)                         |
 
 ### outputs
 
@@ -802,7 +803,7 @@ increase this length for larger repositories by setting the
       -
         name: Docker meta
         id: meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: |
             name/app
@@ -949,7 +950,7 @@ workflow run. Will be empty for a branch reference:
 > return the expected branch when the push tag event occurs. It's also
 > [not documented in GitHub docs](https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#push).
 > We keep it for backward compatibility, but it's **not recommended relying on it**.
-> More context in [#192](https://github.com/LiquidLogicLabs/docker-metadata-action/pull/192#discussion_r854673012). 
+> More context in [#192](https://github.com/LiquidLogicLabs/git-action-docker-metadata/pull/192#discussion_r854673012). 
 
 #### `{{is_default_branch}}`
 
@@ -1013,7 +1014,7 @@ that you can reuse them further in your workflow using the [`fromJSON` function]
 ```yaml
       -
         name: Docker meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         id: meta
         with:
           images: name/app
@@ -1039,7 +1040,7 @@ this:
       -
         name: Docker meta
         id: meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: name/app
           labels: |
@@ -1061,7 +1062,7 @@ of the `metadata-action`:
 ```yaml
       -
         name: Docker meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: name/app
       -
@@ -1077,7 +1078,7 @@ The same can be done with the [`bake-action`](https://github.com/docker/bake-act
 ```yaml
       -
         name: Docker meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: name/app
       -
@@ -1106,7 +1107,7 @@ Please consult the documentation of your registry.
 ```yaml
       -
         name: Docker meta
-        uses: LiquidLogicLabs/docker-metadata-action@v0.1.0
+        uses: LiquidLogicLabs/git-action-docker-metadata@v0.1.0
         with:
           images: name/app
         env:
