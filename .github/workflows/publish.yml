@@ -73,7 +73,7 @@ jobs:
             exit 0
           fi
 
-          gh release create "$TAG" --title "$TAG" --notes "Automated release bundle"
+          gh release create "$TAG" --title "$TAG" --notes "Automated release bundle" --draft=false --prerelease=false
           echo "created=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload assets
@@ -84,3 +84,4 @@ jobs:
           overwrite: true
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.tag.outputs.value }}
+          draft: false
