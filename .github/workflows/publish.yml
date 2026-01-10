@@ -46,6 +46,12 @@ jobs:
             echo "value=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Validate tag version
+        id: version
+        uses: LiquidLogicLabs/git-tag-validate-version-action@v1
+        with:
+          tag: ${{ steps.tag.outputs.value }}
+
       - name: Checkout tag
         run: |
           git checkout ${{ steps.tag.outputs.value }}
@@ -61,27 +67,20 @@ jobs:
           mkdir -p release
           tar -czf release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz dist
 
-      - name: Create release if needed
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG=${{ steps.tag.outputs.value }}
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "created=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release $TAG already exists; skipping asset upload."
-            exit 0
-          fi
-
-          gh release create "$TAG" --title "$TAG" --notes "Automated release bundle" --draft=false --prerelease=false
-          echo "created=true" >> "$GITHUB_OUTPUT"
-
-      - name: Upload assets
-        if: steps.release.outputs.created != 'false'
-        uses: softprops/action-gh-release@v2
+      - name: Create/Update floating tags
+        if: steps.version.outputs.hasPrerelease != 'true' && steps.version.outputs.isValid == 'true'
+        uses: LiquidLogicLabs/git-floating-version-tags-action@v1
         with:
-          files: release/docker-metadata-action-${{ steps.tag.outputs.value }}.tar.gz
-          overwrite: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ steps.tag.outputs.value }}
+          tag: ${{ steps.tag.outputs.value }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release
+        uses: LiquidLogicLabs/git-action-release@v1
+        with:
+          tag: ${{ steps.tag.outputs.value }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: Automated release bundle
           draft: false
+          prerelease: ${{ steps.version.outputs.hasPrerelease == 'true' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
