@@ -17,11 +17,6 @@
     "test:act:ci": "act -W .github/workflows/ci.yml --eventpath .github/workflows/.act/event-ci.json",
     "test:act:release": "act push --workflows .github/workflows/publish.yml -j bundle --eventpath .github/workflows/.act/event-release.json",
     "lint:act": "act -W .github/workflows/ci.yml -j lint",
-    "release": "standard-version --release-as patch && git push --follow-tags origin HEAD",
-    "release:pre-alpha": "standard-version --prerelease alpha && git push --follow-tags origin HEAD",
-    "release:pre-beta": "standard-version --prerelease beta && git push --follow-tags origin HEAD",
-    "release:pre-rc": "standard-version --prerelease rc && git push --follow-tags origin HEAD",
-    "release:pre-dev": "standard-version --prerelease patch --prereleaseId dev && git push --follow-tags origin HEAD",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s"
   },
   "repository": {
