@@ -66,32 +66,26 @@ act push -W .github/workflows/ci.yml -j context --eventpath .github/workflows/.a
 - **dist/ must be committed**: After any `src/` change, run `yarn build` and commit the updated `dist/index.js` along with source changes.
 - **`simple-git` import under `nodenext`**: Use the named export — `import {simpleGit} from 'simple-git'` — not the default import. The default import is not callable under `nodenext` module resolution and will cause a TypeScript/ncc build error.
 - **Upstream sync discipline**: See `docs/UPSTREAM_SYNC_RULES.md` before merging upstream changes. Preserve git-only/offline behavior and document sync status clearly.
+- **Vendored files are never hand-edited.** `src/meta.ts`, `src/tag.ts`,
+  `src/flavor.ts` and `src/image.ts` are upstream's files. `yarn check:vendored`
+  fails if they drift. Extend `src/shims/` instead.
 
 ## Upstream Sync Process
 
-This fork is rebased directly onto `upstream/master` so there is always exactly **one customization commit** on top of the upstream history. This keeps the "X commits behind" counter at 0 and makes future syncs trivial.
+Upstream's engine (`src/meta.ts`, `src/tag.ts`, `src/flavor.ts`, `src/image.ts`) and its
+full test suite are vendored **verbatim** behind an anti-corruption shim in `src/shims/`.
+See [docs/UPSTREAM_SYNC_RULES.md](docs/UPSTREAM_SYNC_RULES.md) for the full guardrails and
+sync log; the commands are:
 
 ```bash
-# 1. Fetch latest upstream
-git fetch upstream
-
-# 2. Rebase our single customization commit onto new upstream/master
-git rebase upstream/master
-# Resolve any conflicts (typically src/context.ts, src/meta.ts, package.json)
-# Always take our version for: git.ts, removal of toolkit deps, our scripts
-# Take upstream's version for: new features, bug fixes in meta/tag/flavor logic
-
-# 3. Rebuild dist and verify no API deps crept in
-yarn build
-grep -c "octokit\|actions-toolkit\|api\.github\.com" dist/index.js  # must all be 0
-
-# 4. Run tests
-yarn test
-act push -W .github/workflows/ci.yml -j context --eventpath .github/workflows/.act/event-ci.json
-
-# 5. Force-push (history was rewritten)
-git push origin master --force
+yarn sync:upstream vX.Y.Z   # vendor the tag and update .upstream-sync.json
+yarn tsc --noEmit           # the tripwire: a missing shim field fails here
+yarn check:vendored         # vendored files still match upstream
+yarn test                   # includes upstream's vendored suite
+yarn build                  # then assert the three-grep invariant
 ```
+
+Releases are cut through the `sync-release` workflow, not by hand — see Release Process below.
 
 ## Workflow Patching
 
@@ -108,39 +102,20 @@ When syncing upstream, check these four files for new conflicts. The `if` condit
 
 ## Release Process
 
-> **Note:** the sync *mechanism* below is being replaced — see
-> [the upstream-sync design](docs/superpowers/specs/2026-09-05-upstream-sync-design.md).
-> Until that is implemented, the process below is still what is in use, except that
-> the version number now follows the MAJOR.MINOR-mirror / own-the-PATCH rule above.
+Releases are cut through the `sync-release` workflow (`workflow_dispatch`, input: the fork
+version to release, e.g. `6.2.1`) — never by hand-tagging. It:
 
-To release after a sync:
+1. Validates the given version's MAJOR.MINOR matches the upstream tag recorded in
+   `.upstream-sync.json` (mirror-MAJOR.MINOR / own-the-PATCH — see the versioning note
+   above; there is no prerelease-suffix path).
+2. Runs `yarn install --immutable`, `yarn check:vendored`, `yarn test`, `yarn build`.
+3. Asserts `dist/index.js` is unchanged by that build (`git diff --exit-code dist/index.js`).
+4. Tags `vX.Y.Z` and force-updates the floating `vX` and `vX.Y` tags, then creates the
+   GitHub release.
 
-```bash
-# 1. Update version in package.json and add CHANGELOG entry, then:
-git add <all changed files>
-git commit -m "feat: sync with upstream docker/metadata-action vX.Y.Z"
-
-# 2. Force-push master (rebase rewrites history)
-git push origin master --force
-
-# 3. Delete old tags and release (locally and remotely)
-git tag -d vX.Y.Z vX
-git push origin :refs/tags/vX.Y.Z :refs/tags/vX
-gh release delete vX.Y.Z --repo LiquidLogicLabs/git-action-docker-metadata --yes
-
-# 4. Create new tags pointing to HEAD
-git tag vX.Y.Z HEAD
-git tag vX HEAD
-git push origin vX.Y.Z vX
-
-# 5. Create GitHub release
-gh release create vX.Y.Z \
-  --repo LiquidLogicLabs/git-action-docker-metadata \
-  --title "vX.Y.Z — Sync with upstream docker/metadata-action vX.Y.Z" \
-  --notes "..."
-```
-
-Note: the `release:patch/minor/major` npm scripts call `npm run package` internally which does not exist — do not use them. The `tag-release.yml` workflow automatically updates the floating major tag (`vX`) when a release is published.
+There are no direct `release:patch`/`release:minor`/`release:major` npm scripts — they were
+removed because they bypassed every one of the gates above and produced prerelease
+version numbers. Cutting a release means dispatching `sync-release.yml`.
 
 ## Cursor Rules
 

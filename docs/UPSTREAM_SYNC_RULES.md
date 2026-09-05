@@ -1,16 +1,6 @@
 ## Upstream Sync Rules (docker/metadata-action)
 
-> **The mechanism in this document is being replaced.** See
-> [the upstream-sync design](superpowers/specs/2026-09-05-upstream-sync-design.md),
-> approved 2026-09-05. The **guardrails below still apply in full** — in
-> particular the three-grep `dist` purity invariant, which becomes a required
-> gate in the new process. What changes is *how* the sync is performed: vendoring
-> upstream's engine verbatim behind a shim, rather than hand-reconciling edits.
->
-> The former heading said "v5.x"; the fork has been on the v6 line since
-> 2026-04-21.
-
-This fork must track upstream features while remaining 100% GitHub-API free (git-only, offline-friendly). Follow these steps for every sync.
+This fork must track upstream features while remaining 100% GitHub-API free (git-only, offline-friendly). Upstream's engine (`src/meta.ts`, `src/tag.ts`, `src/flavor.ts`, `src/image.ts`) and its full test suite are vendored **verbatim** behind an anti-corruption shim in `src/shims/`. Follow the steps below for every sync.
 
 ### Guardrails
 - Do **not** add `@actions/github` or `@docker/actions-toolkit`; keep `simple-git` for context.
@@ -34,22 +24,35 @@ This fork must track upstream features while remaining 100% GitHub-API free (git
   Always ignore `dist/*.map` — sourcemaps may embed these strings from dependency comments.
 
 ### Workflow
-1. Fetch the latest upstream tag to mirror (e.g., `v5.10.0` or newer) and diff `action.yml`, `src/`, `__tests__/`, docs. Source: https://github.com/docker/metadata-action
-2. Map changes: replace any GitHub API usage with git/event-payload equivalents or document omissions.
-3. Update context handling to support new upstream expressions/inputs without adding API calls.
-4. Refresh README sync note to record the upstream tag being mirrored; bump `package.json` only if you are publishing a fork release.
-5. Regenerate `dist/` via `yarn install && yarn build` (or repo-standard build) and commit `dist/`.
-6. Run `yarn lint`, `yarn test`, and `yarn build`; fix regressions before tagging.
-7. Note any intentional deviations (API-only features) in README.
+
+Syncs are performed by the `upstream-sync` workflow, or locally:
+
+    yarn sync:upstream vX.Y.Z   # vendor the tag and update .upstream-sync.json
+    yarn tsc --noEmit           # the tripwire: a missing shim field fails here
+    yarn check:vendored         # vendored files still match upstream
+    yarn test                   # includes upstream's vendored suite
+    yarn build                  # then assert the three-grep invariant
+
+Vendored files are **never hand-edited**. If upstream's engine reads a field the
+shim does not supply, extend `src/shims/`, never the vendored file. The one
+permitted exception is `__tests__/meta.test.ts`, which carries a single marked
+VENDORED-EDIT for the exception list; it is listed under `vendoredWithEdits` in
+`.upstream-sync.json` and is re-applied by hand after each sync.
+
+Releases are cut separately, through the `sync-release` workflow
+(`workflow_dispatch`, taking the fork version to release): it re-runs
+`check:vendored`, `test`, and `build`, asserts `dist/index.js` is unchanged by
+that build, then tags and publishes the release. It also enforces the version
+rule below — the release fails if the given version's MAJOR.MINOR does not
+match the upstream tag recorded in `.upstream-sync.json`.
 
 ### Quick checklist
-- [ ] Upstream tag diffed and reconciled
-- [ ] Git-only context preserved (no new API deps)
-- [ ] README sync status reflects upstream tag
-- [ ] README sync status updated
-- [ ] workflows match upstream
-- [ ] dist rebuilt
-- [ ] Lint/test/build pass
+- [ ] Upstream tag vendored via `yarn sync:upstream vX.Y.Z`
+- [ ] `yarn tsc --noEmit`, `yarn check:vendored`, `yarn test`, `yarn build` all pass
+- [ ] `__tests__/meta.test.ts`'s VENDORED-EDIT block re-applied if the sync overwrote it
+- [ ] Three-grep dist purity invariant is 0/0/0
+- [ ] `.upstream-sync.json` reflects the new tag/commit
+- [ ] Release cut via the `sync-release` workflow, not by hand
 
 ## Sync log
 
