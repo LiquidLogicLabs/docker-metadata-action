@@ -98,6 +98,7 @@ Upstream workflows that don't apply to this fork are disabled with a minimal `if
 |---|---|
 | `publish.yml` | `if: github.repository_owner == 'docker'` — disables Marketplace publishing |
 | `validate.yml` | `if: github.repository_owner == 'docker'` — disables bake-based validation |
+| `codeql.yml` | `if: github.repository_owner == 'docker'` — disables the advanced CodeQL config; this repo uses GitHub's default setup, and the two conflict |
 | `update-dist.yml` | `owner: ${{ github.repository_owner }}` — replaces hardcoded `docker` |
 | `tag-release.yml` | Our file (new, never conflicts) — updates floating major tag on release |
 

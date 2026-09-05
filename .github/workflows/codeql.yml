@@ -17,6 +17,15 @@ env:
 
 jobs:
   analyze:
+    # Disabled in this fork, matching the workflow-patching convention used by
+    # publish.yml and validate.yml (see CLAUDE.md). This repo has GitHub's DEFAULT
+    # CodeQL setup enabled, and GitHub refuses SARIF from an advanced configuration
+    # while default setup is on: "CodeQL analyses from advanced configurations
+    # cannot be processed when the default setup is enabled". This workflow has
+    # therefore failed on every run since 2026-03-24 while contributing no coverage
+    # the default setup does not already provide. Kept (rather than deleted) with a
+    # one-line guard so upstream syncs stay conflict-free.
+    if: github.repository_owner == 'docker'
     runs-on: ubuntu-latest
     steps:
       -
