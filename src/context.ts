@@ -10,6 +10,10 @@ export interface Context {
   eventName: string;
   baseRef?: string;
   defaultBranch?: string;
+  // Present on the GitHub.context shim (src/shims/github.ts) so upstream's
+  // engine can read the raw event payload; unused by this fork's own
+  // getContext() paths, which parse the payload internally instead.
+  payload?: Record<string, unknown>;
 }
 
 export enum ContextSource {

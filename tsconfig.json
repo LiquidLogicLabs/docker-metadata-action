@@ -12,7 +12,10 @@
     "useUnknownInCatchVariables": false,
     "baseUrl": ".",
     "paths": {
-      "@docker/actions-toolkit/lib/context.js": ["src/shims/probe.ts"]
+      "@docker/actions-toolkit/lib/context.js": ["src/shims/toolkit-context.ts"],
+      "@docker/actions-toolkit/lib/types/github/github.js": ["src/shims/github-types.ts"],
+      "@docker/actions-toolkit/lib/github/github.js": ["src/shims/github.ts"],
+      "@docker/actions-toolkit/lib/toolkit.js": ["src/shims/toolkit.ts"]
     }
   },
   "include": [
