@@ -58,3 +58,7 @@ jspm_packages/
 # act (GitHub Actions local testing)
 /.act/
 .secrets
+
+# golden-output parity: freshly produced each run, compared against
+# __tests__/golden/expected.json (committed) — see __tests__/golden.test.ts
+__tests__/golden/actual.json
