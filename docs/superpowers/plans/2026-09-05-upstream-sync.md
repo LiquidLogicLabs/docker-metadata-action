@@ -489,9 +489,12 @@ because no API call is made; this is deliberate and documented."
 Resolve the upstream tag's commit — never use the local tag, which is the fork's own:
 
 ```bash
-git fetch upstream --tags
 UPSTREAM_TAG=v6.2.0
+# Upstream's tags are LIGHTWEIGHT, so the ^{} peel form resolves to nothing; fall
+# back to the plain ref. Do not use `git fetch --tags` — it fails on this fork
+# because our own v6/v6.0.0 tags collide with upstream's.
 UPSTREAM_SHA=$(git ls-remote upstream "refs/tags/${UPSTREAM_TAG}^{}" | awk '{print $1}')
+[ -z "$UPSTREAM_SHA" ] && UPSTREAM_SHA=$(git ls-remote upstream "refs/tags/${UPSTREAM_TAG}" | awk '{print $1}')
 echo "$UPSTREAM_SHA"
 ```
 
@@ -1205,8 +1208,12 @@ jobs:
         run: |
           git remote add upstream https://github.com/docker/metadata-action.git || true
           # Upstream tags land in their own namespace so they cannot shadow ours.
+          # NOTE: `git fetch upstream --tags` is deliberately NOT used. It fails with
+          # "would clobber existing tag" because this fork's own v6/v6.0.0 release tags
+          # share names with upstream's, and a non-zero exit aborts the job. No local
+          # tag fetch is needed anyway: discovery below uses ls-remote, and
+          # vendor-upstream.mjs fetches the resolved commit SHA directly.
           git config --replace-all remote.upstream.fetch '+refs/tags/*:refs/upstream-tags/*'
-          git fetch upstream --tags
 
       - name: Determine target tag
         id: target
