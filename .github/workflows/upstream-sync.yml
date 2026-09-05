@@ -54,6 +54,10 @@ jobs:
               | awk '{print $2}' | sed 's#refs/tags/##' \
               | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           fi
+          if ! printf '%s' "${target}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::refusing malformed upstream tag: ${target}"
+            exit 1
+          fi
           current=$(node -p "require('./.upstream-sync.json').tag")
           echo "target=${target}" >> "$GITHUB_OUTPUT"
           echo "current=${current}" >> "$GITHUB_OUTPUT"
@@ -65,7 +69,9 @@ jobs:
 
       - name: Already current
         if: steps.target.outputs.uptodate == 'true'
-        run: echo "Already on upstream ${{ steps.target.outputs.current }}. Nothing to do."
+        env:
+          Z_CURRENT: ${{ steps.target.outputs.current }}
+        run: echo "Already on upstream ${Z_CURRENT}. Nothing to do."
 
       - name: Setup Node.js
         if: steps.target.outputs.uptodate == 'false'
@@ -79,7 +85,9 @@ jobs:
 
       - name: Vendor the upstream tag
         if: steps.target.outputs.uptodate == 'false'
-        run: yarn sync:upstream "${{ steps.target.outputs.target }}"
+        env:
+          Z_TARGET: ${{ steps.target.outputs.target }}
+        run: yarn sync:upstream "${Z_TARGET}"
 
       - name: Typecheck — the tripwire
         if: steps.target.outputs.uptodate == 'false'
