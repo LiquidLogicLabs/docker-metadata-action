@@ -39,12 +39,21 @@ permitted exception is `__tests__/meta.test.ts`, which carries a single marked
 VENDORED-EDIT for the exception list; it is listed under `vendoredWithEdits` in
 `.upstream-sync.json` and is re-applied by hand after each sync.
 
+`yarn check:vendored` does **NOT** verify this file — `scripts/check-vendored.mjs`
+only byte-compares the entries under `.upstream-sync.json`'s `vendored` array; it
+never reads `vendoredWithEdits`. So after a sync, nothing mechanical tells you
+whether the VENDORED-EDIT block was lost or re-applied incorrectly — only manual
+review catches drift in `__tests__/meta.test.ts`.
+
 Releases are cut separately, through the `sync-release` workflow
 (`workflow_dispatch`, taking the fork version to release): it re-runs
 `check:vendored`, `test`, and `build`, asserts `dist/index.js` is unchanged by
 that build, then tags and publishes the release. It also enforces the version
 rule below — the release fails if the given version's MAJOR.MINOR does not
-match the upstream tag recorded in `.upstream-sync.json`.
+match the upstream tag recorded in `.upstream-sync.json`. Creating the release
+fires a `release: published` event, which re-triggers `tag-release.yml` and
+force-updates the floating `vX` tag a second time; this is harmless since both
+workflows write the same SHA, but it means `vX` is written twice per release.
 
 ### Quick checklist
 - [ ] Upstream tag vendored via `yarn sync:upstream vX.Y.Z`

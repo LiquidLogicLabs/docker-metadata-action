@@ -68,7 +68,10 @@ act push -W .github/workflows/ci.yml -j context --eventpath .github/workflows/.a
 - **Upstream sync discipline**: See `docs/UPSTREAM_SYNC_RULES.md` before merging upstream changes. Preserve git-only/offline behavior and document sync status clearly.
 - **Vendored files are never hand-edited.** `src/meta.ts`, `src/tag.ts`,
   `src/flavor.ts` and `src/image.ts` are upstream's files. `yarn check:vendored`
-  fails if they drift. Extend `src/shims/` instead.
+  fails if they drift. Extend `src/shims/` instead. This check does **NOT**
+  cover `__tests__/meta.test.ts` (the one file with a permitted VENDORED-EDIT,
+  listed under `vendoredWithEdits` in `.upstream-sync.json`) — `check:vendored`
+  only compares the `vendored` array, so drift there is caught by review only.
 
 ## Upstream Sync Process
 
@@ -111,7 +114,9 @@ version to release, e.g. `6.2.1`) — never by hand-tagging. It:
 2. Runs `yarn install --immutable`, `yarn check:vendored`, `yarn test`, `yarn build`.
 3. Asserts `dist/index.js` is unchanged by that build (`git diff --exit-code dist/index.js`).
 4. Tags `vX.Y.Z` and force-updates the floating `vX` and `vX.Y` tags, then creates the
-   GitHub release.
+   GitHub release. Creating the release fires a `release: published` event, which
+   re-triggers `tag-release.yml` and force-updates `vX` a second time — harmless,
+   since both workflows write the same SHA, but `vX` is written twice per release.
 
 There are no direct `release:patch`/`release:minor`/`release:major` npm scripts — they were
 removed because they bypassed every one of the gates above and produced prerelease
