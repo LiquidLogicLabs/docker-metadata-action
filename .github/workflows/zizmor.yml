@@ -18,7 +18,30 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Audit workflows for injection and supply-chain issues
+      - name: Assert scan targets exist
+        # This repo already learned this lesson once with actionlint, which
+        # silently exits 0 when handed a directory with nothing in it. zizmor
+        # is handed a directory too (.github/workflows), so verify up front
+        # that there is actually something in it to scan, rather than trusting
+        # a green run to mean anything was checked.
         run: |
-          docker run --rm -v "$PWD:/repo" ghcr.io/zizmorcore/zizmor:1.30.0 \
+          set -euo pipefail
+          n=$(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | wc -l)
+          echo "workflow files found: ${n}"
+          if [ "${n}" -eq 0 ]; then
+            echo "::error::no workflow files found under .github/workflows — zizmor would silently scan nothing"
+            exit 1
+          fi
+          if [ ! -f action.yml ]; then
+            echo "::error::action.yml not found — zizmor would silently scan nothing"
+            exit 1
+          fi
+
+      - name: Audit workflows for injection and supply-chain issues
+        # Pinned by digest, not the mutable :1.30.0 tag, so the audit can't
+        # silently start running a different image. Resolved via
+        # `docker buildx imagetools inspect ghcr.io/zizmorcore/zizmor:1.30.0`.
+        run: |
+          # 1.30.0
+          docker run --rm -v "$PWD:/repo" ghcr.io/zizmorcore/zizmor@sha256:1ba0035c343f50e85fde29beb0d78e4db448eaa0c762a11a09805d241424ee03 \
             --persona regular --format plain /repo/.github/workflows /repo/action.yml

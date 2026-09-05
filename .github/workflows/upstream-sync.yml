@@ -33,6 +33,7 @@ jobs:
 
       - name: Add upstream remote
         run: |
+          set -euo pipefail
           git remote add upstream https://github.com/docker/metadata-action.git || true
           # Upstream tags land in their own namespace so they cannot shadow ours.
           # NOTE: `git fetch upstream --tags` is deliberately NOT used. It fails with
@@ -102,13 +103,13 @@ jobs:
         if: steps.target.outputs.uptodate == 'false'
         run: yarn check:vendored
 
-      - name: Test
-        if: steps.target.outputs.uptodate == 'false'
-        run: yarn test
-
       - name: Build
         if: steps.target.outputs.uptodate == 'false'
         run: yarn build
+
+      - name: Test
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn test
 
       - name: dist purity invariant
         if: steps.target.outputs.uptodate == 'false'

@@ -37,6 +37,27 @@ import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
+// The child must NOT inherit the whole parent environment. `yarn golden:record`
+// runs outside Vitest, but the golden TEST runs inside Vitest after
+// __tests__/setup.unit.ts has already mutated GITHUB_REPOSITORY/RUNNER_TEMP/TEMP
+// — inheriting process.env wholesale means the producer sees different ambient
+// values depending on who calls it, and on a real runner GITHUB_EVENT_PATH would
+// point at a real event payload that no scenario asked for. Build the child
+// environment from an explicit allowlist plus the scenario's own values instead.
+const ALLOWED_ENV_KEYS = new Set(['PATH', 'HOME']);
+const ALLOWED_ENV_PREFIXES = ['NODE_'];
+
+function baseEnv() {
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (ALLOWED_ENV_KEYS.has(key) || ALLOWED_ENV_PREFIXES.some(prefix => key.startsWith(prefix))) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
 const scenarios = JSON.parse(readFileSync('__tests__/golden/scenarios.json', 'utf8'));
 const results = {};
 
@@ -45,8 +66,12 @@ for (const s of scenarios) {
   const outFile = join(dir, 'output');
   writeFileSync(outFile, '');
   const env = {
-    ...process.env,
+    ...baseEnv(),
     ...s.env,
+    // Deterministic mode: never let an ambient GITHUB_EVENT_PATH (a real event
+    // payload on an actual runner) leak into the baseline. Scenarios that need
+    // workflow-payload behavior set their own via s.env above.
+    GITHUB_EVENT_PATH: s.env?.GITHUB_EVENT_PATH || '',
     GITHUB_OUTPUT: outFile,
     GITHUB_STATE: join(dir, 'state'),
     RUNNER_TEMP: dir

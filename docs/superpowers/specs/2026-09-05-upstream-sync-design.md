@@ -11,8 +11,14 @@ hand-done rebase, without giving up the property that makes this fork exist:
 the action must run with **no GitHub API dependency**, under `act` and on Gitea.
 
 Success: when upstream publishes a release, a scheduled job produces a green,
-merged, released sync with no human involvement — and when it cannot, it fails
-loudly and hands a human a precise, small problem.
+merged, released sync with no human involvement — with one standing exception:
+when upstream's release touches `__tests__/meta.test.ts`, the one vendored file
+carrying a permitted hand-edit (the VENDORED-EDIT block; see `vendoredWithEdits`
+in `.upstream-sync.json`). `scripts/vendor-upstream.mjs` overwrites that file
+like any other vendored one and nothing re-applies the edit, so that case always
+produces a red PR needing the block re-applied by hand before it can go green.
+Outside that one case, and for any other reason a gate fails, the job fails
+loudly and hands a human a precise, small problem rather than merging.
 
 ## This repo is deliberately different
 

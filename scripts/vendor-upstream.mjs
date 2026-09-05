@@ -11,14 +11,6 @@ if (!tag || !/^v\d+\.\d+\.\d+$/.test(tag)) {
   process.exit(2);
 }
 
-const REWRITES = [
-  ['@docker/actions-toolkit/lib/context.js', './shims/toolkit-context.js'],
-  ['@docker/actions-toolkit/lib/types/github/github.js', './shims/github-types.js'],
-  ['@docker/actions-toolkit/lib/github/github.js', './shims/github.js'],
-  ['@docker/actions-toolkit/lib/toolkit.js', './shims/toolkit.js']
-];
-const REWRITE_MODE = process.env.VENDOR_REWRITE === '1';
-
 // Resolve via ls-remote: the LOCAL tag of the same name is the fork's own and
 // shadows upstream's. Using it would silently vendor the fork's own files.
 // Query both the plain ref and its peeled (^{}) form: upstream's tags are
@@ -47,12 +39,7 @@ const sync = JSON.parse(readFileSync('.upstream-sync.json', 'utf8'));
 const files = [...sync.vendored, ...(sync.vendoredWithEdits || [])];
 
 for (const file of files) {
-  let content = execFileSync('git', ['show', `${commit}:${file}`], {encoding: 'utf8'});
-  if (REWRITE_MODE) {
-    for (const [from, to] of REWRITES) {
-      content = content.split(`'${from}'`).join(`'${to}'`);
-    }
-  }
+  const content = execFileSync('git', ['show', `${commit}:${file}`], {encoding: 'utf8'});
   writeFileSync(file, content);
   console.log(`vendored ${file}`);
 }

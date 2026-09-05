@@ -23,6 +23,65 @@ env:
   BUILDX_VERSION: latest
 
 jobs:
+  fork-invariants:
+    # Upstream's own validate.yml gates everything behind `repository_owner ==
+    # 'docker'`, so on this fork none of lint/typecheck/vendor-check/dist-parity
+    # ever ran on a PR. This job intentionally does NOT copy that gate — it must
+    # run for this repository, on every pull request and every push to master.
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      -
+        name: Setup Node.js
+        # zizmor: ignore[cache-poisoning] cache is explicitly disabled (`cache: ''`
+        # below) precisely because this job runs on pull_request; nothing this
+        # job produces is uploaded, published, or consumed by any other job.
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: ''
+      -
+        name: Install
+        run: yarn install --immutable
+      -
+        name: Lint
+        run: yarn lint
+      -
+        name: Typecheck
+        run: yarn tsc --noEmit
+      -
+        name: Vendored files match upstream
+        run: yarn check:vendored
+      -
+        name: Test
+        run: yarn test
+      -
+        name: Build
+        run: yarn build
+      -
+        name: dist is committed (parity)
+        run: git diff --exit-code dist/index.js
+      -
+        name: dist purity invariant
+        run: |
+          set -euo pipefail
+          fail=0
+          for pat in "octokit\|Octokit\|rest\.repos\|rest\.git\|graphql\|@octokit" \
+                     "actions-toolkit\|actions/github" \
+                     "api\.github\.com"; do
+            n=$(grep -c "${pat}" dist/index.js || true)
+            echo "pattern '${pat}' -> ${n}"
+            [ "${n}" = "0" ] || fail=1
+          done
+          if [ "${fail}" != "0" ]; then
+            echo "::error::dist/index.js contains GitHub API fingerprints. The fork's core property is broken."
+            exit 1
+          fi
+
   context:
     runs-on: ubuntu-latest
     strategy:

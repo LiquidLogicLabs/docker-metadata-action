@@ -2,16 +2,16 @@
   {
     "name": "push-branch",
     "env": {"GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "860c1904a1ce19322e91ac35af1ab07466440c37", "GITHUB_EVENT_NAME": "push"},
-    "inputs": {"images": "local/app", "tags": "type=ref,event=branch\ntype=sha"}
+    "inputs": {"context": "workflow", "images": "local/app", "tags": "type=ref,event=branch\ntype=sha"}
   },
   {
     "name": "push-tag-semver",
     "env": {"GITHUB_REF": "refs/tags/v1.2.3", "GITHUB_SHA": "860c1904a1ce19322e91ac35af1ab07466440c37", "GITHUB_EVENT_NAME": "push"},
-    "inputs": {"images": "local/app", "tags": "type=semver,pattern={{version}}\ntype=semver,pattern={{major}}.{{minor}}"}
+    "inputs": {"context": "workflow", "images": "local/app", "tags": "type=semver,pattern={{version}}\ntype=semver,pattern={{major}}.{{minor}}"}
   },
   {
     "name": "flavor-prefix-suffix",
     "env": {"GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "860c1904a1ce19322e91ac35af1ab07466440c37", "GITHUB_EVENT_NAME": "push"},
-    "inputs": {"images": "local/app", "tags": "type=ref,event=branch", "flavor": "prefix=v-,suffix=-alpha,latest=true"}
+    "inputs": {"context": "workflow", "images": "local/app", "tags": "type=ref,event=branch", "flavor": "prefix=v-,suffix=-alpha,latest=true"}
   }
 ]
