@@ -1,0 +1,88 @@
+name: sync-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Fork version to release, e.g. 6.2.1'
+        required: true
+        type: string
+
+concurrency:
+  group: sync-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate the version against the mirror rule
+        env:
+          Z_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${Z_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::refusing malformed version"
+            exit 1
+          fi
+          upstream_tag=$(node -p "require('./.upstream-sync.json').tag")
+          if [[ ! "${upstream_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::refusing malformed upstream tag in .upstream-sync.json"
+            exit 1
+          fi
+          # Rule: fork mirrors upstream MAJOR.MINOR and owns the PATCH.
+          want="${upstream_tag#v}"; want="${want%.*}"
+          got="${Z_VERSION%.*}"
+          if [ "${want}" != "${got}" ]; then
+            echo "::error::version does not mirror upstream ${upstream_tag} MAJOR.MINOR (${want}.x)"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Install, test, build
+        run: |
+          yarn install --immutable
+          yarn check:vendored
+          yarn test
+          yarn build
+
+      - name: dist is committed
+        run: git diff --exit-code dist/index.js
+
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          Z_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${Z_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::refusing malformed version"
+            exit 1
+          fi
+          v="v${Z_VERSION}"
+          upstream_tag=$(node -p "require('./.upstream-sync.json').tag")
+          upstream_sha=$(node -p "require('./.upstream-sync.json').commit")
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag "${v}"
+          major="v${Z_VERSION%%.*}"
+          minor="v$(echo "${Z_VERSION}" | cut -d. -f1-2)"
+          git tag -f "${major}"; git tag -f "${minor}"
+          git push origin "${v}"
+          git push -f origin "${major}" "${minor}"
+          gh release create "${v}" --title "${v}" --notes \
+            "Synced with upstream docker/metadata-action ${upstream_tag} (${upstream_sha})."
