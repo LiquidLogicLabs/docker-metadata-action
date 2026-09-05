@@ -1,0 +1,24 @@
+name: zizmor
+
+on:
+  push:
+    branches: ['master']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Audit workflows for injection and supply-chain issues
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/zizmorcore/zizmor:1.30.0 \
+            --persona regular --format plain /repo/.github/workflows /repo/action.yml

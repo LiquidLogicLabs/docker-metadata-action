@@ -3,7 +3,7 @@ name: pr-assign-author
 permissions:
   contents: read
 
-on:
+on: # zizmor: ignore[dangerous-triggers] no checkout of PR code occurs; the called reusable workflow only assigns the PR author as assignee via the API.
   pull_request_target:
     types:
       - opened

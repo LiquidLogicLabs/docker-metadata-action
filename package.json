@@ -32,7 +32,7 @@
   ],
   "author": "Docker Inc.",
   "license": "Apache-2.0",
-  "packageManager": "yarn@4.9.2",
+  "packageManager": "yarn@4.18.0",
   "dependencies": {
     "@actions/core": "^3.0.0",
     "@renovate/pep440": "^1.0.0",
@@ -58,16 +58,7 @@
     "eslint-plugin-prettier": "^5.5.5",
     "globals": "^17.3.0",
     "prettier": "^3.8.1",
-    "standard-version": "^9.5.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
-  },
-  "standard-version": {
-    "scripts": {
-      "precommit": "git add CHANGELOG.md package.json"
-    },
-    "skip": {
-      "tag": false
-    }
   }
 }
