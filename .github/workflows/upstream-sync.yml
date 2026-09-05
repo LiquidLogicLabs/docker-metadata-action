@@ -1,0 +1,137 @@
+name: upstream-sync
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag to sync (e.g. v6.3.0)'
+        required: false
+        type: string
+
+# Single-flight: two runs must never race the same branch.
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/docker/metadata-action.git || true
+          # Upstream tags land in their own namespace so they cannot shadow ours.
+          # NOTE: `git fetch upstream --tags` is deliberately NOT used. It fails with
+          # "would clobber existing tag" because this fork's own v6/v6.0.0 release tags
+          # share names with upstream's, and a non-zero exit aborts the job. No local
+          # tag fetch is needed anyway: discovery below uses ls-remote, and
+          # vendor-upstream.mjs fetches the resolved commit SHA directly.
+          git config --replace-all remote.upstream.fetch '+refs/tags/*:refs/upstream-tags/*'
+
+      - name: Determine target tag
+        id: target
+        env:
+          Z_INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${Z_INPUT_TAG}" ]; then
+            target="${Z_INPUT_TAG}"
+          else
+            target=$(git ls-remote --tags --refs upstream 'refs/tags/v*' \
+              | awk '{print $2}' | sed 's#refs/tags/##' \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          fi
+          current=$(node -p "require('./.upstream-sync.json').tag")
+          echo "target=${target}" >> "$GITHUB_OUTPUT"
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          if [ "${target}" = "${current}" ]; then
+            echo "uptodate=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "uptodate=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Already current
+        if: steps.target.outputs.uptodate == 'true'
+        run: echo "Already on upstream ${{ steps.target.outputs.current }}. Nothing to do."
+
+      - name: Setup Node.js
+        if: steps.target.outputs.uptodate == 'false'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Install
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn install --immutable
+
+      - name: Vendor the upstream tag
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn sync:upstream "${{ steps.target.outputs.target }}"
+
+      - name: Typecheck — the tripwire
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn tsc --noEmit
+
+      - name: Vendored files match upstream
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn check:vendored
+
+      - name: Test
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn test
+
+      - name: Build
+        if: steps.target.outputs.uptodate == 'false'
+        run: yarn build
+
+      - name: dist purity invariant
+        if: steps.target.outputs.uptodate == 'false'
+        run: |
+          set -euo pipefail
+          fail=0
+          for pat in "octokit\|Octokit\|rest\.repos\|rest\.git\|graphql\|@octokit" \
+                     "actions-toolkit\|actions/github" \
+                     "api\.github\.com"; do
+            n=$(grep -c "${pat}" dist/index.js || true)
+            echo "pattern '${pat}' -> ${n}"
+            [ "${n}" = "0" ] || fail=1
+          done
+          if [ "${fail}" != "0" ]; then
+            echo "::error::dist/index.js contains GitHub API fingerprints. The fork's core property is broken."
+            exit 1
+          fi
+
+      - name: Open or update the sync pull request
+        if: steps.target.outputs.uptodate == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          Z_TARGET: ${{ steps.target.outputs.target }}
+        run: |
+          set -euo pipefail
+          branch="sync/upstream-${Z_TARGET}"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -B "${branch}"
+          git add -A
+          git commit -m "chore: sync with upstream ${Z_TARGET}" || {
+            echo "No changes to commit."; exit 0; }
+          git push --force origin "${branch}"
+          # Idempotent: reuse the existing PR for this tag rather than opening a new one nightly.
+          if [ -z "$(gh pr list --head "${branch}" --json number -q '.[].number')" ]; then
+            gh pr create --head "${branch}" --base master \
+              --title "chore: sync with upstream ${Z_TARGET}" \
+              --body "Automated sync. Typecheck, vendored-file check, tests, build and the dist purity invariant all passed."
+          fi
