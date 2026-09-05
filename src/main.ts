@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as core from '@actions/core';
 
 import {getContext, getInputs, Inputs} from './context.js';
-import {getGitContext, parseRepoFromRemoteUrl, Repo} from './git.js';
+import {GitHub} from './shims/github.js';
+import type {GitHubRepo} from './shims/github-types.js';
 import {Meta, Version} from './meta.js';
 
 function setOutputAndEnv(name: string, value: string) {
@@ -35,8 +36,7 @@ async function run() {
   try {
     const inputs: Inputs = getInputs();
     const context = await getContext(inputs.context);
-    const gitContext = await getGitContext();
-    const repo: Repo = parseRepoFromRemoteUrl(gitContext.remoteUrl || '', gitContext.defaultBranch);
+    const repo: GitHubRepo = await new GitHub().repoData();
     const setOutput = outputEnvEnabled() ? setOutputAndEnv : core.setOutput;
 
     await core.group(`Context info`, async () => {

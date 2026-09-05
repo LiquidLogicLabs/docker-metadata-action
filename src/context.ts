@@ -4,16 +4,16 @@ import * as fs from 'fs';
 import {getGitContext} from './git.js';
 
 export interface Context {
-  sha: string;
   ref: string;
+  sha: string;
   commitDate: Date;
   eventName: string;
-  baseRef?: string;
-  defaultBranch?: string;
-  // Present on the GitHub.context shim (src/shims/github.ts) so upstream's
-  // engine can read the raw event payload; unused by this fork's own
-  // getContext() paths, which parse the payload internally instead.
-  payload?: Record<string, unknown>;
+  payload: {
+    base_ref?: string;
+    repository?: {default_branch?: string};
+    pull_request?: {base?: {ref?: string}};
+    [key: string]: unknown;
+  };
 }
 
 export enum ContextSource {
@@ -103,40 +103,44 @@ async function getContextFromGit(): Promise<Context> {
     ref: gitContext.ref,
     commitDate: gitContext.commitDate,
     eventName: process.env.GITHUB_EVENT_NAME || 'push',
-    baseRef: '',
-    defaultBranch: gitContext.defaultBranch
+    payload: {
+      repository: {default_branch: gitContext.defaultBranch}
+    }
   };
 }
 
 async function getContextFromWorkflow(): Promise<Context> {
   const gitContext = await getGitContext();
-  const payload = loadEventPayload();
+  const rawPayload = loadEventPayload();
 
   const eventName = process.env.GITHUB_EVENT_NAME || 'workflow';
   let sha = process.env.GITHUB_SHA || gitContext.sha;
   let ref = process.env.GITHUB_REF || gitContext.ref;
 
-  if (/pull_request_target/.test(eventName) && typeof payload?.number === 'number') {
-    ref = `refs/pull/${payload.number}/merge`;
+  if (/pull_request_target/.test(eventName) && typeof rawPayload?.number === 'number') {
+    ref = `refs/pull/${rawPayload.number}/merge`;
   }
 
-  const pullRequestHeadSha = payload?.pull_request?.head?.sha;
+  const pullRequestHeadSha = rawPayload?.pull_request?.head?.sha;
   if (/true/i.test(process.env.DOCKER_METADATA_PR_HEAD_SHA || '') && eventName.includes('pull_request') && pullRequestHeadSha) {
     sha = pullRequestHeadSha;
   }
 
-  const commitDate = resolveCommitDateFromPayload(payload, sha) ?? gitContext.commitDate ?? new Date();
+  const commitDate = resolveCommitDateFromPayload(rawPayload, sha) ?? gitContext.commitDate ?? new Date();
 
-  const baseRef = payload?.pull_request?.base?.ref || payload?.base_ref || '';
-  const defaultBranch = payload?.repository?.default_branch || gitContext.defaultBranch;
+  const payload: Context['payload'] = {
+    ...rawPayload,
+    repository: {
+      default_branch: rawPayload.repository?.default_branch || gitContext.defaultBranch
+    }
+  };
 
   return {
     sha,
     ref,
     commitDate,
     eventName,
-    baseRef,
-    defaultBranch
+    payload
   };
 }
 

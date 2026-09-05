@@ -9,6 +9,7 @@
     "lint": "eslint --max-warnings=0 .",
     "format": "eslint --fix .",
     "test": "vitest run",
+    "check:vendored": "node scripts/check-vendored.mjs",
     "test:act": "act workflow_dispatch -W .github/workflows/test.yml --eventpath .github/workflows/.act/event-workflow_call.json",
     "test:act:verbose": "act workflow_dispatch -W .github/workflows/test.yml --eventpath .github/workflows/.act/event-workflow_call.json -v",
     "test:act:ci": "act -W .github/workflows/ci.yml --eventpath .github/workflows/.act/event-ci.json",

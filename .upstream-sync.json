@@ -1,0 +1,11 @@
+{
+  "tag": "v6.2.0",
+  "commit": "dc802804100637a589fabce1cb79ff13a1411302",
+  "syncedAt": "2026-09-05T13:29:10.353Z",
+  "vendored": [
+    "src/meta.ts",
+    "src/tag.ts",
+    "src/flavor.ts",
+    "src/image.ts"
+  ]
+}
