@@ -327,7 +327,9 @@ export interface GitHubRepo {
   name: string;
   description: string;
   html_url: string;
-  license: string | null;
+  // An OBJECT, not a string: upstream's engine reads `repo.license?.spdx_id`.
+  // The GitHub API returns {key, name, spdx_id, url, node_id}; only spdx_id is read.
+  license: {spdx_id: string} | null;
   default_branch: string;
 }
 ```
@@ -1195,7 +1197,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -1234,7 +1236,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.target.outputs.uptodate == 'false'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
 
@@ -1380,7 +1382,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -1399,7 +1401,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
 
