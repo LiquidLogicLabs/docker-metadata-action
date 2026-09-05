@@ -67,11 +67,13 @@ act push -W .github/workflows/ci.yml -j context --eventpath .github/workflows/.a
 - **`simple-git` import under `nodenext`**: Use the named export — `import {simpleGit} from 'simple-git'` — not the default import. The default import is not callable under `nodenext` module resolution and will cause a TypeScript/ncc build error.
 - **Upstream sync discipline**: See `docs/UPSTREAM_SYNC_RULES.md` before merging upstream changes. Preserve git-only/offline behavior and document sync status clearly.
 - **Vendored files are never hand-edited.** `src/meta.ts`, `src/tag.ts`,
-  `src/flavor.ts` and `src/image.ts` are upstream's files. `yarn check:vendored`
-  fails if they drift. Extend `src/shims/` instead. This check does **NOT**
-  cover `__tests__/meta.test.ts` (the one file with a permitted VENDORED-EDIT,
-  listed under `vendoredWithEdits` in `.upstream-sync.json`) — `check:vendored`
-  only compares the `vendored` array, so drift there is caught by review only.
+  `src/flavor.ts`, `src/image.ts` and `__tests__/meta.test.ts` (upstream's own
+  test suite) are upstream's files, byte-for-byte. `yarn check:vendored` hashes
+  all five against `.upstream-sync.json` and fails if any drift. Extend
+  `src/shims/` instead of touching a vendored file. Assertions in
+  `meta.test.ts` that cannot pass without a GitHub API are excluded via
+  `__tests__/vendored-exceptions.ts`'s `EXCEPTIONS`, applied as a
+  `testNamePattern` in `vitest.config.ts` — never by editing the test file.
 
 ## Upstream Sync Process
 

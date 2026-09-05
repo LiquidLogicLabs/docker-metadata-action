@@ -13,16 +13,6 @@ import {Meta, Version} from '../src/meta.js';
 
 import repoFixture from './fixtures/repo.json' with {type: 'json'};
 
-// VENDORED-EDIT: the only permitted modification to this file. See
-// vendored-exceptions.ts for why these cases cannot pass in an API-free fork.
-import {EXCEPTIONS} from './vendored-exceptions.js';
-
-// EXCEPTIONS is currently empty (see vendored-exceptions.ts), so no test call
-// below wraps itself with this yet; kept ready for the next upstream sync
-// that needs it.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const skipIfExcepted = (name: string) => (EXCEPTIONS.includes(name) ? test.skip : test);
-
 vi.spyOn(GitHub.prototype, 'repoData').mockImplementation((): Promise<GitHubRepo> => {
   return <Promise<GitHubRepo>>(repoFixture as unknown);
 });

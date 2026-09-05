@@ -33,17 +33,26 @@ Syncs are performed by the `upstream-sync` workflow, or locally:
     yarn test                   # includes upstream's vendored suite
     yarn build                  # then assert the three-grep invariant
 
-Vendored files are **never hand-edited**. If upstream's engine reads a field the
-shim does not supply, extend `src/shims/`, never the vendored file. The one
-permitted exception is `__tests__/meta.test.ts`, which carries a single marked
-VENDORED-EDIT for the exception list; it is listed under `vendoredWithEdits` in
-`.upstream-sync.json` and is re-applied by hand after each sync.
+Vendored files are **never hand-edited**, and there is no longer an exception
+for this. `__tests__/meta.test.ts` — upstream's own suite, 4922 lines — is
+vendored byte-for-byte in `.upstream-sync.json`'s `vendored` array, alongside
+`src/meta.ts`, `src/tag.ts`, `src/flavor.ts` and `src/image.ts`. `yarn
+check:vendored` byte-compares all five against the recorded upstream hashes,
+so a sync is fully mechanical: it can no longer silently overwrite a hand-
+applied edit, because there is no hand-applied edit to overwrite. `.upstream-
+sync.json` still carries a `vendoredWithEdits` key for future use, but it is
+empty — `scripts/check-vendored.mjs` never reads it either way, and
+`scripts/vendor-upstream.mjs` treats it as an empty list when computing which
+files to vendor.
 
-`yarn check:vendored` does **NOT** verify this file — `scripts/check-vendored.mjs`
-only byte-compares the entries under `.upstream-sync.json`'s `vendored` array; it
-never reads `vendoredWithEdits`. So after a sync, nothing mechanical tells you
-whether the VENDORED-EDIT block was lost or re-applied incorrectly — only manual
-review catches drift in `__tests__/meta.test.ts`.
+Some assertions in that suite cannot pass in a fork that makes no GitHub API
+calls (see `__tests__/vendored-exceptions.ts` for why, and its
+`EXPECTED_EXCEPTION_COUNT` guard against silent growth). Rather than editing
+the vendored test file to skip them, the exclusion is applied from
+`vitest.config.ts` — a file that is never touched by a sync — which builds a
+negative-lookahead `testNamePattern` from `EXCEPTIONS` (escaping regex
+metacharacters in each title) when the list is non-empty. `EXCEPTIONS` is
+currently empty, so nothing is filtered and all upstream tests run.
 
 Releases are cut separately, through the `sync-release` workflow
 (`workflow_dispatch`, taking the fork version to release): it re-runs
@@ -58,7 +67,10 @@ workflows write the same SHA, but it means `vX` is written twice per release.
 ### Quick checklist
 - [ ] Upstream tag vendored via `yarn sync:upstream vX.Y.Z`
 - [ ] `yarn tsc --noEmit`, `yarn check:vendored`, `yarn test`, `yarn build` all pass
-- [ ] `__tests__/meta.test.ts`'s VENDORED-EDIT block re-applied if the sync overwrote it
+- [ ] If new upstream tests fail for the same API-free reason as an existing
+      entry in `__tests__/vendored-exceptions.ts`, add the title there (never
+      wildcard) and bump `EXPECTED_EXCEPTION_COUNT` — `vitest.config.ts` picks
+      it up automatically, no test file edit needed
 - [ ] Three-grep dist purity invariant is 0/0/0
 - [ ] `.upstream-sync.json` reflects the new tag/commit
 - [ ] Release cut via the `sync-release` workflow, not by hand
@@ -86,3 +98,19 @@ workflows write the same SHA, but it means `vX` is written twice per release.
   own unchanged `package.json` name / `action.yml` display name. `README.md` and
   this file's default-value example above are updated to match; both had been
   left documenting the wrong (`git-action-docker-metadata`) default.
+
+- **2026-09-05 (mechanical sync)** — `__tests__/meta.test.ts` moved from
+  `vendoredWithEdits` to `vendored`: its only divergence from upstream was a
+  hand-added `VENDORED-EDIT` block importing `EXCEPTIONS` and defining
+  `skipIfExcepted`, which had zero call sites (`EXCEPTIONS` was, and is,
+  empty) and meant every sync overwrote the file and `check:vendored` never
+  verified it — the one vendored artifact (4922 lines, upstream's own suite)
+  nothing checked. The block is gone; the file is now byte-identical to
+  upstream `dc802804100637a589fabce1cb79ff13a1411302` and hashed in
+  `.upstream-sync.json` alongside the other four vendored files.
+  `vitest.config.ts` now builds `test.testNamePattern` from
+  `__tests__/vendored-exceptions.ts`'s `EXCEPTIONS` (regex-escaped, negative
+  lookahead) when non-empty, so the exception mechanism lives in a file a
+  sync never touches. `check:vendored` reports 5 files. A sync
+  (`node scripts/vendor-upstream.mjs v6.2.0`) is now a true no-op against
+  `__tests__/meta.test.ts` — previously it always produced a diff there.

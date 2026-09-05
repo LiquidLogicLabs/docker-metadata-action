@@ -69,5 +69,7 @@ sync.syncedAt = new Date().toISOString();
 sync.hashes = hashes;
 writeFileSync('.upstream-sync.json', JSON.stringify(sync, null, 2) + '\n');
 console.log(`\npointer updated to ${tag} (${commit.slice(0, 9)})`);
-console.log('NOTE: files in vendoredWithEdits were overwritten and their permitted');
-console.log('edits must be re-applied by hand before the suite will pass.');
+if ((sync.vendoredWithEdits || []).length > 0) {
+  console.log('NOTE: files in vendoredWithEdits were overwritten and their permitted');
+  console.log('edits must be re-applied by hand before the suite will pass.');
+}

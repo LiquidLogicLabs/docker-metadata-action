@@ -1,20 +1,20 @@
 {
   "tag": "v6.2.0",
   "commit": "dc802804100637a589fabce1cb79ff13a1411302",
-  "syncedAt": "2026-09-05T13:29:10.353Z",
+  "syncedAt": "2026-09-05T16:54:50.673Z",
   "vendored": [
     "src/meta.ts",
     "src/tag.ts",
     "src/flavor.ts",
-    "src/image.ts"
-  ],
-  "vendoredWithEdits": [
+    "src/image.ts",
     "__tests__/meta.test.ts"
   ],
+  "vendoredWithEdits": [],
   "hashes": {
     "src/meta.ts": "sha256:bb814528b6f1275b783f052e0de14519e729be4a5316e66466140d2cf0973ed1",
     "src/tag.ts": "sha256:32fa44905e05ed9d78c79bc782b730f249eb520089f6ee9e9a8defce8ca1d8fb",
     "src/flavor.ts": "sha256:8b4b1c20eed76d7588663a8d136a8ac7a3badea48854cc850e689da3b6bddde5",
-    "src/image.ts": "sha256:f168ec101023155b1db960b4a24257c0ef5cbbfa51f335b6eb498e55185691c5"
+    "src/image.ts": "sha256:f168ec101023155b1db960b4a24257c0ef5cbbfa51f335b6eb498e55185691c5",
+    "__tests__/meta.test.ts": "sha256:8101985366a47c9c823a2cbc6c2ff059e2c5a0bea065532e247cf02136b6c686"
   }
 }
