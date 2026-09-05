@@ -68,3 +68,9 @@ This fork must track upstream features while remaining 100% GitHub-API free (git
   verbatim vendoring behind a shim. Also found: `src/context.ts:80` defaults
   `bake-target` to `git-action-docker-metadata` where upstream uses
   `docker-metadata-action` — a live drop-in break, to be reverted.
+
+- **2026-09-05 (Task 4 fix round 1)** — Reverted: `src/context.ts`'s `bake-target`
+  default is back to `docker-metadata-action`, matching upstream and this fork's
+  own unchanged `package.json` name / `action.yml` display name. `README.md` and
+  this file's default-value example above are updated to match; both had been
+  left documenting the wrong (`git-action-docker-metadata`) default.

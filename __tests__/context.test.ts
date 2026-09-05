@@ -221,6 +221,46 @@ describe('getContext', () => {
     expect(context.sha).toEqual('payload-sha');
     expect(context.commitDate).toEqual(new Date('2022-01-01T00:00:00.000Z'));
   });
+
+  it('should use default_branch from the event payload when present', async () => {
+    // event_create_branch.json (loaded by the outer beforeEach) carries
+    // "repository": {"default_branch": "master", ...}. The payload's own
+    // value must win even though getGitContext ends up called anyway here
+    // (this fixture's payload has no matching commit, so the commitDate
+    // fallback still reaches for git; default_branch must not be overwritten
+    // by whatever that call returns).
+    vi.spyOn(gitModule, 'getGitContext').mockImplementation(async () => {
+      return {
+        sha: 'irrelevant-sha',
+        ref: 'refs/heads/irrelevant',
+        commitDate: new Date('2099-01-01T00:00:00.000Z'),
+        remoteUrl: 'https://github.com/test/repo.git',
+        defaultBranch: 'not-the-payload-value'
+      };
+    });
+    const context = await getContext(ContextSource.workflow);
+    expect(context.payload.repository?.default_branch).toEqual('master');
+  });
+
+  it('should fall back to git default branch when workflow payload does not carry one', async () => {
+    // event_schedule.json has no "repository.default_branch" field at all
+    // (mirrors a real `workflow_call` payload, which is just {inputs: {}}).
+    process.env = {
+      ...process.env,
+      ...dotenv.parse(fs.readFileSync(path.join(import.meta.dirname, 'fixtures/event_schedule.env')))
+    };
+    vi.spyOn(gitModule, 'getGitContext').mockImplementation(async () => {
+      return {
+        sha: 'sched-sha',
+        ref: 'refs/heads/master',
+        commitDate: new Date('2023-05-05T00:00:00.000Z'),
+        remoteUrl: 'https://github.com/test/repo.git',
+        defaultBranch: 'master'
+      };
+    });
+    const context = await getContext(ContextSource.workflow);
+    expect(context.payload.repository?.default_branch).toEqual('master');
+  });
 });
 
 // See: https://github.com/actions/toolkit/blob/master/packages/core/src/core.ts#L67

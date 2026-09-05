@@ -390,7 +390,7 @@ The following inputs can be used as `step.with` keys:
 | `sep-tags`        | String | Separator to use for tags output (default `\n`)                             |
 | `sep-labels`      | String | Separator to use for labels output (default `\n`)                           |
 | `sep-annotations` | String | Separator to use for annotations output (default `\n`)                      |
-| `bake-target`     | String | Bake target name (default `git-action-docker-metadata`)                         |
+| `bake-target`     | String | Bake target name (default `docker-metadata-action`)                         |
 
 ### outputs
 
