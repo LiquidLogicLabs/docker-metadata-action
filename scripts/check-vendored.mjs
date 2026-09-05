@@ -16,6 +16,12 @@ const REWRITES = [
 const REWRITE_MODE = process.env.VENDOR_REWRITE === '1';
 
 const sync = JSON.parse(readFileSync('.upstream-sync.json', 'utf8'));
+
+if (!Array.isArray(sync.vendored) || sync.vendored.length === 0) {
+  console.error('.upstream-sync.json has no vendored files listed — refusing to report success.');
+  process.exit(1);
+}
+
 let failed = 0;
 
 for (const file of sync.vendored) {

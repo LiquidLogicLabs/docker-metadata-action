@@ -29,7 +29,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.workflow,
-        bakeTarget: 'git-action-docker-metadata',
+        bakeTarget: 'docker-metadata-action',
         flavor: [],
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
         labels: [],
@@ -79,7 +79,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.workflow,
-        bakeTarget: 'git-action-docker-metadata',
+        bakeTarget: 'docker-metadata-action',
         flavor: [],
         images: ['moby/buildkit', 'ghcr.io/moby/mbuildkit'],
         labels: [],
@@ -102,7 +102,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.workflow,
-        bakeTarget: 'git-action-docker-metadata',
+        bakeTarget: 'docker-metadata-action',
         flavor: [],
         images: [],
         labels: ['mylabel=foo#bar', 'another=bar'],
@@ -125,7 +125,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.workflow,
-        bakeTarget: 'git-action-docker-metadata',
+        bakeTarget: 'docker-metadata-action',
         flavor: [],
         images: [],
         labels: [],
@@ -152,7 +152,7 @@ describe('getInputs', () => {
       ]),
       {
         context: ContextSource.workflow,
-        bakeTarget: 'git-action-docker-metadata',
+        bakeTarget: 'docker-metadata-action',
         flavor: ['prefix=v#1'],
         images: [],
         labels: [],

@@ -36,7 +36,7 @@ inputs:
     description: 'Separator to use for annotations output (default \n)'
     required: false
   bake-target:
-    description: 'Bake target name (default git-action-docker-metadata)'
+    description: 'Bake target name (default docker-metadata-action)'
     required: false
   github-token:
     description: '[DEPRECATED / UNUSED in this fork] GitHub Token. This fork reads metadata directly from git instead of calling the GitHub API, so no token is required. The input is retained only for API compatibility with the upstream docker/metadata-action; passing a value is a no-op. Will be removed in a future major version.'

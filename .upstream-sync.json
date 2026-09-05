@@ -7,5 +7,8 @@
     "src/tag.ts",
     "src/flavor.ts",
     "src/image.ts"
+  ],
+  "vendoredWithEdits": [
+    "__tests__/meta.test.ts"
   ]
 }

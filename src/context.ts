@@ -81,7 +81,7 @@ export function getInputs(): Inputs {
     sepTags: core.getInput('sep-tags', {trimWhitespace: false}) || `\n`,
     sepLabels: core.getInput('sep-labels', {trimWhitespace: false}) || `\n`,
     sepAnnotations: core.getInput('sep-annotations', {trimWhitespace: false}) || `\n`,
-    bakeTarget: core.getInput('bake-target') || `git-action-docker-metadata`
+    bakeTarget: core.getInput('bake-target') || `docker-metadata-action`
   };
 }
 
@@ -110,12 +110,16 @@ async function getContextFromGit(): Promise<Context> {
 }
 
 async function getContextFromWorkflow(): Promise<Context> {
-  const gitContext = await getGitContext();
   const rawPayload = loadEventPayload();
 
   const eventName = process.env.GITHUB_EVENT_NAME || 'workflow';
-  let sha = process.env.GITHUB_SHA || gitContext.sha;
-  let ref = process.env.GITHUB_REF || gitContext.ref;
+  // sha/ref come strictly from the workflow's own environment (or the event
+  // payload below for pull_request_target/DOCKER_METADATA_PR_HEAD_SHA), never
+  // from the local git checkout: this mode models what a GitHub Actions
+  // workflow provides, and silently substituting the runner's own git state
+  // when those are unset would fabricate a ref/sha the workflow never gave us.
+  let sha = process.env.GITHUB_SHA || '';
+  let ref = process.env.GITHUB_REF || '';
 
   if (/pull_request_target/.test(eventName) && typeof rawPayload?.number === 'number') {
     ref = `refs/pull/${rawPayload.number}/merge`;
@@ -126,12 +130,21 @@ async function getContextFromWorkflow(): Promise<Context> {
     sha = pullRequestHeadSha;
   }
 
-  const commitDate = resolveCommitDateFromPayload(rawPayload, sha) ?? gitContext.commitDate ?? new Date();
+  // commitDate has no workflow-env equivalent to the above: GitHub never
+  // exposes it directly, only via the event payload's commit list (below) or
+  // the API. Falling back to the local git checkout's commit date is the
+  // documented, tested behavior (see __tests__/context.test.ts) for when the
+  // payload doesn't carry it.
+  let commitDate = resolveCommitDateFromPayload(rawPayload, sha);
+  if (!commitDate) {
+    const gitContext = await getGitContext();
+    commitDate = gitContext.commitDate ?? new Date();
+  }
 
   const payload: Context['payload'] = {
     ...rawPayload,
     repository: {
-      default_branch: rawPayload.repository?.default_branch || gitContext.defaultBranch
+      default_branch: rawPayload.repository?.default_branch
     }
   };
 
