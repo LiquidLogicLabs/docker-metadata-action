@@ -48,12 +48,19 @@ jobs:
         # per input it finishes auditing (confirmed against v1.30.0), so
         # capture its output and assert that count is nonzero: the gate must
         # not be able to pass by scanning nothing.
+        #
+        # The pattern below is anchored to a path-like suffix (a real
+        # workflow/action file, not just the word "completed") so a summary
+        # line like "audit completed with 0 findings" can't satisfy it.
+        # This couples the check to zizmor v1.30.0's log format: bumping the
+        # pinned digest MUST re-verify this pattern still matches that
+        # version's per-file completion lines before merging the bump.
         run: |
           set -o pipefail
           # 1.30.0
           docker run --rm -v "$PWD:/repo" ghcr.io/zizmorcore/zizmor@sha256:1ba0035c343f50e85fde29beb0d78e4db448eaa0c762a11a09805d241424ee03 \
             --persona regular --format plain /repo/.github/workflows /repo/action.yml 2>&1 | tee /tmp/zizmor.out
-          completed=$(grep -c 'completed ' /tmp/zizmor.out || true)
+          completed=$(grep -cE 'completed .*/[^/[:space:]]+\.ya?ml$' /tmp/zizmor.out || true)
           echo "files completed by zizmor: ${completed}"
           if [ "${completed}" -eq 0 ]; then
             echo "::error::zizmor reported zero completed files — the scan did not actually check anything"

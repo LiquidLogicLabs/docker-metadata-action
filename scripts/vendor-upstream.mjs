@@ -46,13 +46,20 @@ const files = [...sync.vendored, ...(sync.vendoredWithEdits || [])];
 const hashes = {};
 
 for (const file of files) {
-  const content = execFileSync('git', ['show', `${commit}:${file}`], {encoding: 'utf8'});
+  // No {encoding: 'utf8'} here: this must be a byte-for-byte copy of
+  // upstream's blob, not a decode/re-encode round-trip. Decoding to a JS
+  // string and writing it back can silently corrupt content that doesn't
+  // round-trip through UTF-8 (invalid sequences replaced with U+FFFD, BOM
+  // handling, etc.), which would make the recorded hash certify corrupted
+  // bytes as correct. execFileSync with no `encoding` returns a Buffer.
+  const content = execFileSync('git', ['show', `${commit}:${file}`]);
   writeFileSync(file, content);
   console.log(`vendored ${file}`);
   if (sync.vendored.includes(file)) {
-    // Hash the exact bytes just written to disk, not the git-show output —
-    // they must be the same bytes check-vendored.mjs reads back later.
-    hashes[file] = `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`;
+    // Hash the exact bytes just written to disk (the same Buffer), not a
+    // re-read or re-decoded form — they must be the same bytes
+    // check-vendored.mjs reads back later.
+    hashes[file] = `sha256:${createHash('sha256').update(content).digest('hex')}`;
   }
 }
 
