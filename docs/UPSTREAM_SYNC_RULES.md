@@ -1,4 +1,14 @@
-## Upstream Sync Rules (docker/metadata-action v5.x)
+## Upstream Sync Rules (docker/metadata-action)
+
+> **The mechanism in this document is being replaced.** See
+> [the upstream-sync design](superpowers/specs/2026-09-05-upstream-sync-design.md),
+> approved 2026-09-05. The **guardrails below still apply in full** — in
+> particular the three-grep `dist` purity invariant, which becomes a required
+> gate in the new process. What changes is *how* the sync is performed: vendoring
+> upstream's engine verbatim behind a shim, rather than hand-reconciling edits.
+>
+> The former heading said "v5.x"; the fork has been on the v6 line since
+> 2026-04-21.
 
 This fork must track upstream features while remaining 100% GitHub-API free (git-only, offline-friendly). Follow these steps for every sync.
 
@@ -9,7 +19,12 @@ This fork must track upstream features while remaining 100% GitHub-API free (git
 - Default branch: use git remote HEAD (`origin/HEAD` fallback to `main`/`master`).
 - Keep outputs + env exports parity with upstream.
 - The `github-token` input may exist for upstream compatibility, but it must remain unused (no GitHub API calls).
-- Workflows must match upstream exactly; remove local workflow-only tweaks during sync.
+- Workflows are **patched, not mirrored**. This rule previously read "workflows must
+  match upstream exactly; remove local workflow-only tweaks during sync", which
+  directly contradicted the workflow-patching table in `CLAUDE.md` and the actual
+  contents of `.github/workflows/`. The patching approach is what is really in use:
+  upstream workflows that do not apply are disabled with a minimal `if` condition
+  rather than deleted. Corrected 2026-09-05.
 - When verifying `dist/index.js` is clean, grep for **package fingerprints** (not just URLs) — all must return 0 matches:
   ```bash
   grep -c "octokit\|Octokit\|rest\.repos\|rest\.git\|graphql\|@octokit" dist/index.js
@@ -39,3 +54,17 @@ This fork must track upstream features while remaining 100% GitHub-API free (git
 ## Sync log
 
 - **2026-04-21** — Verified alignment with upstream `v6.0.0`. Upstream is 16 commits ahead on `master` (all CI/CD only — zizmor, CodeQL, dependabot, workflow fixes; `git log HEAD..upstream/master -- src/ __tests__/` returns zero commits). Declined to rebase onto `master` to preserve the "version matches upstream exactly" convention. 3-grep invariant verified 0/0/0 on rebuilt `dist/index.js`. All 66 Vitest tests pass. Will re-sync when upstream publishes the next release tag (v6.0.1+ or v7).
+
+- **2026-09-05** — Re-measured against upstream v6.2.0. Upstream is 148 commits ahead;
+  `git log base..v6.2.0 -- src/ __tests__/` again returns **zero** commits, reproducing
+  the April result. The 12 non-dependabot commits are build tooling and CI only.
+  Coupling surface enumerated **by the compiler** (not grep) by building upstream's
+  files against an empty shim: `Context` needs 5 members, `GitHubRepo` 5, and
+  `ToolkitContext` exactly one (`tmpDir()`, `meta.ts:649`); `tag.ts`, `flavor.ts` and
+  `image.ts` import nothing from the toolkit. A prior grep-derived estimate of 12
+  context fields was wrong — it split nested `payload.*` paths.
+  Two decisions taken: the version convention changes to mirror MAJOR.MINOR and own
+  the PATCH (superseding the 2026-04-21 entry below), and the sync mechanism moves to
+  verbatim vendoring behind a shim. Also found: `src/context.ts:80` defaults
+  `bake-target` to `git-action-docker-metadata` where upstream uses
+  `docker-metadata-action` — a live drop-in break, to be reverted.

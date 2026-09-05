@@ -83,6 +83,7 @@ Four steps, no judgment in any of them:
    list (below).
 4. Golden-output parity: run the action over fixture repos before and after, and
    diff emitted tags, labels and annotations.
+5. The inherited three-grep dist purity invariant (see below) must return 0/0/0.
 
 Also fix local tag shadowing, which is a developer-ergonomics bug only: the fork's
 `v6`/`v6.0.0` tags shadow upstream's in a clone with both remotes, which is why
@@ -123,20 +124,73 @@ Operational requirements:
 - **Single-flight.** Concurrency group prevents two runs racing the same branch.
 - Merge and release only when every gate is green; otherwise stop at a PR.
 
-## Version scheme
+## Version scheme — RESOLVED 2026-09-05: option (b)
 
-Mirror upstream's **MAJOR.MINOR**, own the **PATCH**. Upstream 6.2.x becomes fork
+`docs/UPSTREAM_SYNC_RULES.md` recorded, on 2026-04-21: *"Declined to rebase onto
+`master` to preserve the 'version matches upstream exactly' convention."*
+`CLAUDE.md` stated the same rule. This design proposed changing it, and that
+prior decision was re-surfaced to the user explicitly before confirmation.
+
+**Decision: adopt (b). The user approved the change knowingly, and approved
+updating `CLAUDE.md` to match.** The superseded rule must be removed from both
+documents, not left to contradict this one.
+
+Rejected: **(a) keep mirroring exactly.** Fork vX.Y.Z == upstream vX.Y.Z is
+simpler to reason about, but leaves no room to ship a fork-only fix between
+upstream releases without inventing a number upstream may later reuse, or
+waiting for upstream. The fork now carries fork-only fixes (the `bake-target`
+revert below is one), so this cost is real rather than hypothetical.
+
+**Adopted: mirror MAJOR.MINOR, own the PATCH.** Upstream 6.2.x becomes fork
 6.2.N (ours), with floating `v6` and `v6.2` maintained so `@v6` and `@v6.2` stay
 drop-in.
 
 Prerelease suffixes (`v6.2.0-lll.1`) are rejected: they sort *before* `v6.2.0`,
 which inverts the real ordering.
 
-The accepted cost: our `6.2.3` and a hypothetical upstream `6.2.3` are different
+Under (b), the accepted cost: our `6.2.3` and a hypothetical upstream `6.2.3` are different
 content. This has no technical effect, since consumers only resolve tags in this
 repo, but it is ambiguous to a reader. Mitigated by recording the synced upstream
 tag and commit in `.upstream-sync.json` and in the release notes, so "which
 upstream am I on" has a precise answer.
+
+## Relationship to existing documentation
+
+This design supersedes the *mechanism* in `docs/UPSTREAM_SYNC_RULES.md` while
+keeping all of its guardrails. That document must be updated, not left to
+contradict this one.
+
+Two existing contradictions were found and must be resolved as part of the work:
+
+1. `UPSTREAM_SYNC_RULES.md` says *"Workflows must match upstream exactly; remove
+   local workflow-only tweaks during sync."* `CLAUDE.md` documents the opposite:
+   a workflow-patching table that disables `publish.yml` and `validate.yml` via
+   `if: github.repository_owner == 'docker'`. Both cannot hold. The patching
+   approach is the one actually in the repo, so the rule text is what is wrong.
+2. `CLAUDE.md` notes the `release:patch/minor/major` scripts call a
+   `npm run package` target that does not exist and must not be used. That is a
+   latent trap for any release automation this design adds.
+
+## The dist purity invariant (inherited, and load-bearing)
+
+`UPSTREAM_SYNC_RULES.md` defines a three-grep invariant on the built bundle,
+which all must return 0:
+
+    grep -c "octokit\|Octokit\|rest\.repos\|rest\.git\|graphql\|@octokit" dist/index.js
+    grep -c "actions-toolkit\|actions/github" dist/index.js
+    grep -c "api\.github\.com" dist/index.js
+
+This is the strongest existing guarantee that the fork's core property holds, and
+it stays a required gate.
+
+**It interacts directly with this design and must be verified early.** The
+vendored upstream sources will still contain the literal text
+`from '@docker/actions-toolkit/...'`, and the alias only redirects where that
+specifier *resolves*. Bundlers normally inline the resolved module and drop the
+specifier, so the invariant should still hold — but that is an assumption about
+bundler output, not a fact, and this design would be the first thing to break it.
+Verify it against a real build in the first implementation task. Note the
+existing rule that `dist/*.map` is always excluded from these greps.
 
 ## Compatibility fixes required by the drop-in constraint
 

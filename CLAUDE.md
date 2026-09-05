@@ -4,7 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A fork of `docker/metadata-action` that removes all GitHub API dependencies, replacing them with direct git commands via `simple-git`. This makes the action work with any git host (GitHub, Gitea, GitLab, Bitbucket, self-hosted, etc.). The fork releases at the **same version number** as the corresponding upstream release (e.g., upstream v6.0.0 → fork v6.0.0).
+A fork of `docker/metadata-action` that removes all GitHub API dependencies, replacing them with direct git commands via `simple-git`. This makes the action work with any git host (GitHub, Gitea, GitLab, Bitbucket, self-hosted, etc.).
+
+**Versioning (changed 2026-09-05):** the fork mirrors upstream's **MAJOR.MINOR** and
+**owns the PATCH** — upstream 6.2.x becomes fork 6.2.N, with floating `v6` and `v6.2`
+maintained so both stay drop-in. This replaces the former "same version number as
+upstream" rule, which left no room to ship a fork-only fix between upstream releases.
+Rationale and the rejected alternative are recorded in
+[docs/superpowers/specs/2026-09-05-upstream-sync-design.md](docs/superpowers/specs/2026-09-05-upstream-sync-design.md).
 
 ## Commands
 
@@ -101,7 +108,12 @@ When syncing upstream, check these four files for new conflicts. The `if` condit
 
 ## Release Process
 
-Version matches upstream exactly. To release after a sync:
+> **Note:** the sync *mechanism* below is being replaced — see
+> [the upstream-sync design](docs/superpowers/specs/2026-09-05-upstream-sync-design.md).
+> Until that is implemented, the process below is still what is in use, except that
+> the version number now follows the MAJOR.MINOR-mirror / own-the-PATCH rule above.
+
+To release after a sync:
 
 ```bash
 # 1. Update version in package.json and add CHANGELOG entry, then:
