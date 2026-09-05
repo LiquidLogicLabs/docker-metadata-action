@@ -1,6 +1,12 @@
 import {defineConfig} from 'vitest/config';
+import * as path from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@docker/actions-toolkit/lib/context.js': path.resolve(__dirname, 'src/shims/probe.ts')
+    }
+  },
   test: {
     clearMocks: true,
     environment: 'node',

@@ -10,6 +10,10 @@
     "noImplicitAny": false,
     "resolveJsonModule": true,
     "useUnknownInCatchVariables": false,
+    "baseUrl": ".",
+    "paths": {
+      "@docker/actions-toolkit/lib/context.js": ["src/shims/probe.ts"]
+    }
   },
   "include": [
     "src/**/*.ts"
