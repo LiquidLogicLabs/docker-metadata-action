@@ -1062,6 +1062,17 @@ checking nothing."
 
 - [ ] **Step 1: Write the sync script**
 
+> **SUPERSEDED — read `scripts/vendor-upstream.mjs` instead.** The code block below
+> is the ORIGINAL plan text and contains two confirmed bugs that the shipped script
+> fixes: (1) it resolves the tag with `refs/tags/<tag>^{}` only, but upstream's tags
+> are LIGHTWEIGHT, so that peel form returns nothing and the script exits 1 on every
+> sync; (2) it calls `git fetch upstream --tags`, which fails here with "would
+> clobber existing tag" because this fork's own v6/v6.0.0 release tags share names
+> with upstream's — and `--tags` forces the default refspec regardless of any
+> `remote.upstream.fetch` namespacing, so the namespaced config does not save it.
+> Kept verbatim for the record of what was planned; the file on disk is the source
+> of truth.
+
 Create `scripts/vendor-upstream.mjs`:
 
 ```js
