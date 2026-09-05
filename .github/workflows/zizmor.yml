@@ -41,7 +41,21 @@ jobs:
         # Pinned by digest, not the mutable :1.30.0 tag, so the audit can't
         # silently start running a different image. Resolved via
         # `docker buildx imagetools inspect ghcr.io/zizmorcore/zizmor:1.30.0`.
+        #
+        # The "targets exist" step above only proves there was something to
+        # scan on the host filesystem — it says nothing about whether zizmor
+        # actually scanned it. zizmor logs an INFO "completed <file>" line
+        # per input it finishes auditing (confirmed against v1.30.0), so
+        # capture its output and assert that count is nonzero: the gate must
+        # not be able to pass by scanning nothing.
         run: |
+          set -o pipefail
           # 1.30.0
           docker run --rm -v "$PWD:/repo" ghcr.io/zizmorcore/zizmor@sha256:1ba0035c343f50e85fde29beb0d78e4db448eaa0c762a11a09805d241424ee03 \
-            --persona regular --format plain /repo/.github/workflows /repo/action.yml
+            --persona regular --format plain /repo/.github/workflows /repo/action.yml 2>&1 | tee /tmp/zizmor.out
+          completed=$(grep -c 'completed ' /tmp/zizmor.out || true)
+          echo "files completed by zizmor: ${completed}"
+          if [ "${completed}" -eq 0 ]; then
+            echo "::error::zizmor reported zero completed files — the scan did not actually check anything"
+            exit 1
+          fi

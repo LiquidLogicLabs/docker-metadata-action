@@ -4,6 +4,7 @@
 // those, so this script has exactly one job.
 import {execFileSync} from 'node:child_process';
 import {readFileSync, writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 
 const tag = process.argv[2];
 if (!tag || !/^v\d+\.\d+\.\d+$/.test(tag)) {
@@ -38,15 +39,27 @@ execFileSync('git', ['fetch', 'upstream', commit], {stdio: 'inherit'});
 const sync = JSON.parse(readFileSync('.upstream-sync.json', 'utf8'));
 const files = [...sync.vendored, ...(sync.vendoredWithEdits || [])];
 
+// Hashes are recorded only for files in `vendored` (byte-identical to
+// upstream, checked offline by check-vendored.mjs). Files in
+// `vendoredWithEdits` are expected to diverge from upstream by design (see
+// .upstream-sync.json), so no hash is recorded for them.
+const hashes = {};
+
 for (const file of files) {
   const content = execFileSync('git', ['show', `${commit}:${file}`], {encoding: 'utf8'});
   writeFileSync(file, content);
   console.log(`vendored ${file}`);
+  if (sync.vendored.includes(file)) {
+    // Hash the exact bytes just written to disk, not the git-show output —
+    // they must be the same bytes check-vendored.mjs reads back later.
+    hashes[file] = `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`;
+  }
 }
 
 sync.tag = tag;
 sync.commit = commit;
 sync.syncedAt = new Date().toISOString();
+sync.hashes = hashes;
 writeFileSync('.upstream-sync.json', JSON.stringify(sync, null, 2) + '\n');
 console.log(`\npointer updated to ${tag} (${commit.slice(0, 9)})`);
 console.log('NOTE: files in vendoredWithEdits were overwritten and their permitted');

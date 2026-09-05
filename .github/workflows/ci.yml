@@ -57,11 +57,11 @@ jobs:
         name: Vendored files match upstream
         run: yarn check:vendored
       -
-        name: Test
-        run: yarn test
-      -
         name: Build
         run: yarn build
+      -
+        name: Test
+        run: yarn test
       -
         name: dist is committed (parity)
         run: git diff --exit-code dist/index.js
